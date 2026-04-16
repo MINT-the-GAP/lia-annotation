@@ -226,13 +226,13 @@ export function ensureToolbar(): HTMLElement {
   bar.setAttribute('data-snapshot-admin', '1');
 
   bar.innerHTML = `
-    <div class="lia-annot-actions">
-      <button class="lia-annot-btn" type="button" data-act="cursor" aria-label="Cursor" data-snapshot-admin="1">${iconCursor()}</button>
-      <button class="lia-annot-btn" type="button" data-act="pen" aria-label="Pen" data-snapshot-admin="1">${iconPen()}</button>
-      <button class="lia-annot-btn" type="button" data-act="eraser" aria-label="Eraser" data-snapshot-admin="1">${iconEraser()}</button>
-      <button class="lia-annot-btn" type="button" data-act="undo" aria-label="Undo" data-snapshot-admin="1">${iconUndo()}</button>
-      <button class="lia-annot-btn" type="button" data-act="redo" aria-label="Redo" data-snapshot-admin="1">${iconRedo()}</button>
-      <button class="lia-annot-btn" type="button" data-act="toggle" aria-label="Show/hide annotations" data-snapshot-admin="1">${iconEye(true)}</button>
+    <div class="lia-annot-actions" role="toolbar" aria-label="Annotation tools">
+      <button class="lia-annot-btn" type="button" data-act="cursor" aria-label="Cursor" aria-pressed="false" title="Cursor" data-snapshot-admin="1">${iconCursor()}</button>
+      <button class="lia-annot-btn" type="button" data-act="pen" aria-label="Pen" aria-pressed="false" title="Pen" data-snapshot-admin="1">${iconPen()}</button>
+      <button class="lia-annot-btn" type="button" data-act="eraser" aria-label="Eraser" aria-pressed="false" title="Eraser" data-snapshot-admin="1">${iconEraser()}</button>
+      <button class="lia-annot-btn" type="button" data-act="undo" aria-label="Undo" title="Undo" data-snapshot-admin="1">${iconUndo()}</button>
+      <button class="lia-annot-btn" type="button" data-act="redo" aria-label="Redo" title="Redo" data-snapshot-admin="1">${iconRedo()}</button>
+      <button class="lia-annot-btn" type="button" data-act="toggle" aria-label="Show/hide annotations" aria-pressed="true" title="Show/hide annotations" data-snapshot-admin="1">${iconEye(true)}</button>
     </div>
     <div class="lia-annot-panel" data-open="0"></div>
   `;
@@ -389,6 +389,11 @@ export function updateToolbar(): void {
     if (act === 'toggle') {
       el.dataset.active = STORE.ui.visible ? '1' : '0';
       el.innerHTML = iconEye(!!STORE.ui.visible);
+    }
+
+    // Keep aria-pressed in sync with the active state for mode and toggle buttons
+    if (act === 'cursor' || act === 'pen' || act === 'eraser' || act === 'toggle') {
+      el.setAttribute('aria-pressed', el.dataset.active === '1' ? 'true' : 'false');
     }
 
     if (act === 'undo') {
