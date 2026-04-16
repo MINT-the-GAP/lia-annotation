@@ -2,48 +2,52 @@
 
 export const CSS = `
   :root {
-    --lia-annot-border: #000;
-    --lia-annot-fg: #000;
-    --lia-annot-accent: #0b5fff;
-    --lia-annot-bg: rgba(255, 255, 255, 0.96);
-    --lia-annot-panel-bg: rgba(255, 255, 255, 0.97);
+    --lia-annot-border: rgba(0,0,0,0.12);
+    --lia-annot-fg: #1a1a1a;
+    --lia-annot-accent: #3b82f6;
+    --lia-annot-bg: rgba(255,255,255,0.92);
+    --lia-annot-panel-bg: rgba(255,255,255,0.97);
+    --lia-annot-hover-bg: rgba(0,0,0,0.06);
+    --lia-annot-shadow: 0 4px 24px rgba(0,0,0,0.13), 0 1.5px 6px rgba(0,0,0,0.07);
+    --lia-annot-panel-shadow: 0 8px 32px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.07);
   }
 
   /* ---- Toolbar shell ---- */
 
   .lia-annot-toolbar {
     position: fixed;
-    left: 8px;
+    left: 10px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 10030;
     display: inline-flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 5px;
+    gap: 0;
+    padding: 6px 5px;
     margin: 0;
     box-sizing: border-box;
-    border: 2px solid var(--lia-annot-border);
-    border-radius: 10px;
+    border: 1px solid var(--lia-annot-border);
+    border-radius: 16px;
     background: var(--lia-annot-bg);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(12px) saturate(1.4);
+    box-shadow: var(--lia-annot-shadow);
   }
 
   .lia-annot-actions {
     display: inline-flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 2px;
     align-items: center;
   }
 
   /* ---- Toolbar buttons ---- */
 
   .lia-annot-btn {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    border: 2px solid var(--lia-annot-border);
-    border-radius: 999px;
+    border: none;
+    border-radius: 10px;
     background: transparent;
     color: var(--lia-annot-fg);
     display: flex;
@@ -52,22 +56,39 @@ export const CSS = `
     cursor: pointer;
     user-select: none;
     line-height: 0;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+  }
+
+  .lia-annot-btn:hover:not([disabled]) {
+    background: var(--lia-annot-hover-bg);
+  }
+
+  .lia-annot-btn:active:not([disabled]) {
+    transform: scale(0.92);
   }
 
   .lia-annot-btn[data-active="1"] {
-    border-color: var(--lia-annot-accent);
-    outline: 2px solid var(--lia-annot-accent);
-    outline-offset: 2px;
+    background: var(--lia-annot-accent);
+    color: #fff;
+  }
+
+  .lia-annot-btn[data-active="1"] .ico-stroke {
+    stroke: #fff;
+  }
+
+  .lia-annot-btn[data-active="1"] path,
+  .lia-annot-btn[data-active="1"] rect {
+    fill: #fff;
   }
 
   .lia-annot-btn[disabled] {
-    opacity: .35;
+    opacity: .3;
     cursor: not-allowed;
   }
 
   .lia-annot-btn svg {
-    width: 19px;
-    height: 19px;
+    width: 18px;
+    height: 18px;
     display: block;
     margin: 0;
     overflow: visible;
@@ -93,23 +114,39 @@ export const CSS = `
     fill: var(--lia-annot-fg);
   }
 
+  /* Divider between mode buttons and action buttons */
+  .lia-annot-btn[data-act="undo"] {
+    margin-top: 6px;
+  }
+  .lia-annot-btn[data-act="undo"]::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 4px;
+    right: 4px;
+    height: 1px;
+    background: var(--lia-annot-border);
+  }
+
   /* ---- Settings panel ---- */
 
   .lia-annot-panel {
     position: absolute;
-    left: 44px;
+    left: 46px;
     top: 0;
     z-index: 10031;
     display: none;
     grid-template-columns: 1fr;
-    gap: 10px;
-    width: min(300px, calc(100vw - 70px));
-    padding: 9px 10px;
+    gap: 12px;
+    width: min(280px, calc(100vw - 70px));
+    padding: 12px 14px;
     box-sizing: border-box;
-    border: 2px solid var(--lia-annot-border);
-    border-radius: 10px;
+    border: 1px solid var(--lia-annot-border);
+    border-radius: 14px;
     background: var(--lia-annot-panel-bg);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(12px) saturate(1.4);
+    box-shadow: var(--lia-annot-panel-shadow);
+    font-size: 13px;
   }
 
   .lia-annot-panel[data-open="1"] {
@@ -124,60 +161,79 @@ export const CSS = `
   }
 
   .lia-annot-row .k {
-    min-width: 6.8em;
-    font-weight: 800;
-    opacity: .85;
+    min-width: 6em;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: .5;
   }
 
   .lia-annot-row .v {
-    min-width: 3.2em;
+    min-width: 3em;
     text-align: right;
-    font-weight: 850;
+    font-weight: 600;
+    font-size: 12px;
+    opacity: .7;
   }
 
   .lia-annot-slider {
-    width: min(180px, 45vw);
+    flex: 1;
+    min-width: 0;
+    width: min(160px, 40vw);
+    accent-color: var(--lia-annot-accent);
   }
 
   .lia-annot-color-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 22px);
-    gap: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     align-items: center;
   }
 
   .lia-annot-color-item {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     border-radius: 999px;
-    border: 2px solid var(--lia-annot-border);
+    border: 1.5px solid rgba(0,0,0,0.15);
     box-sizing: border-box;
     cursor: pointer;
     user-select: none;
     background: transparent;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  .lia-annot-color-item:hover {
+    transform: scale(1.15);
   }
 
   .lia-annot-color-item[data-active="1"] {
-    outline: 2px solid var(--lia-annot-border);
-    outline-offset: 2px;
+    box-shadow: 0 0 0 2.5px var(--lia-annot-accent);
+    transform: scale(1.15);
   }
 
   .lia-annot-note {
-    font-weight: 750;
-    opacity: .8;
-    font-size: .95em;
+    font-weight: 500;
+    opacity: .6;
+    font-size: .9em;
   }
 
   .lia-annot-danger {
     width: auto;
-    min-height: 30px;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 2px solid var(--lia-annot-border);
-    background: transparent;
-    color: var(--lia-annot-fg);
-    font-weight: 850;
+    min-height: 28px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(220,50,50,0.35);
+    background: rgba(220,50,50,0.07);
+    color: #c0392b;
+    font-weight: 600;
+    font-size: 12px;
     cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .lia-annot-danger:hover {
+    background: rgba(220,50,50,0.14);
   }
 
   /* ---- Layout overflow guards ---- */
