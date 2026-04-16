@@ -366,12 +366,25 @@ function drawItem(ctx: CanvasRenderingContext2D, item: import('./types').PathIte
   ctx.lineWidth = widthPx;
   ctx.strokeStyle = erase ? '#000' : color;
 
+  // Quadratic Bézier smoothing: use midpoints between consecutive recorded
+  // points as the curve endpoints, and each recorded point as the control
+  // point. This produces a smooth curve that passes near all input points
+  // without introducing overshoot.
   ctx.beginPath();
-  const p0 = fromRel(item.points[0]);
-  ctx.moveTo(p0.x, p0.y);
-  for (let i = 1; i < item.points.length; i++) {
-    const p = fromRel(item.points[i]);
-    ctx.lineTo(p.x, p.y);
+  const pts = item.points.map(fromRel);
+  ctx.moveTo(pts[0].x, pts[0].y);
+  if (pts.length === 2) {
+    ctx.lineTo(pts[1].x, pts[1].y);
+  } else {
+    // Move to midpoint between first and second point
+    ctx.lineTo((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2;
+      const my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    // End at the last point
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
   }
   ctx.stroke();
   ctx.restore();
