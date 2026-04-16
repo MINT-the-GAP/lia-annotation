@@ -81,8 +81,8 @@ function insertShellAfterHeader(host: Element, shell: HTMLElement): void {
 // ----- Canvas event binding -----
 
 export function bindCanvasEvents(): void {
-  if (!STATE.canvas || (STATE.canvas as any).__liaAnnotBound) return;
-  (STATE.canvas as any).__liaAnnotBound = true;
+  if (!STATE.canvas || STATE.canvas.__liaAnnotBound) return;
+  STATE.canvas.__liaAnnotBound = true;
 
   function getLocalPos(evt: PointerEvent): { x: number; y: number } {
     const r = STATE.canvas!.getBoundingClientRect();

@@ -202,7 +202,7 @@ export function setReadOnly(v: boolean | null): void {
 // ----- Register global API -----
 
 export function registerGlobalApi(): void {
-  (window as any).__LIA_ANNOTATION__ = {
+  window.__LIA_ANNOTATION__ = {
     exportState,
     exportFreezeState,
     importState,
@@ -218,9 +218,9 @@ export function registerGlobalApi(): void {
     getSlideKey: function () { return getSlideKey(); }
   };
 
-  (window as any).__LIA_ANNOTATION_EXPORT__ = function () { return exportState(); };
-  (window as any).__LIA_ANNOTATION_IMPORT__ = function (payload: unknown, opts?: { replace?: boolean }) { return importState(payload, opts); };
-  (window as any).__LIA_ANNOTATION_FREEZE_EXPORT__ = function () { return exportFreezeState(); };
-  (window as any).__LIA_ANNOTATION_FREEZE_IMPORT__ = function (payload: unknown, opts?: { replace?: boolean }) { return importFreezeState(payload, opts); };
-  (window as any).__LIA_ANNOTATION_FREEZE_HAS_DATA__ = function () { return hasFreezeData(); };
+  window.__LIA_ANNOTATION_EXPORT__ = function () { return exportState(); };
+  window.__LIA_ANNOTATION_IMPORT__ = function (payload, opts) { return importState(payload, opts); };
+  window.__LIA_ANNOTATION_FREEZE_EXPORT__ = function () { return exportFreezeState(); };
+  window.__LIA_ANNOTATION_FREEZE_IMPORT__ = function (payload, opts) { return importFreezeState(payload, opts); };
+  window.__LIA_ANNOTATION_FREEZE_HAS_DATA__ = function () { return hasFreezeData(); };
 }

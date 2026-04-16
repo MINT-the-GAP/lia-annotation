@@ -1,6 +1,37 @@
 // All shared interfaces and type aliases for lia-annotation.
 
 export type Mode = 'cursor' | 'pen' | 'eraser';
+
+// ----- Global declarations -----
+
+declare global {
+  interface Window {
+    __LIA_ANNOTATION__: {
+      exportState: () => unknown;
+      exportFreezeState: () => unknown;
+      importState: (payload: unknown, opts?: { replace?: boolean }) => boolean;
+      importFreezeState: (payload: unknown, opts?: { replace?: boolean }) => boolean;
+      hasFreezeData: () => boolean;
+      setVisible: (v: boolean) => void;
+      toggleVisible: () => void;
+      setReadOnly: (v: boolean | null) => void;
+      clearSlide: () => void;
+      clearAllSlides: () => void;
+      refresh: () => void;
+      getStore: () => unknown;
+      getSlideKey: () => string;
+    };
+    __LIA_ANNOTATION_EXPORT__: () => unknown;
+    __LIA_ANNOTATION_IMPORT__: (payload: unknown, opts?: { replace?: boolean }) => boolean;
+    __LIA_ANNOTATION_FREEZE_EXPORT__: () => unknown;
+    __LIA_ANNOTATION_FREEZE_IMPORT__: (payload: unknown, opts?: { replace?: boolean }) => boolean;
+    __LIA_ANNOTATION_FREEZE_HAS_DATA__: () => boolean;
+  }
+
+  interface HTMLCanvasElement {
+    __liaAnnotBound?: boolean;
+  }
+}
 export type PanelMode = 'pen' | 'eraser';
 
 export interface Point { x: number; y: number; }

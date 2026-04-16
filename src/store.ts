@@ -3,20 +3,27 @@
 
 import type { Mode, Point, PathItem, SlideData, Store, State } from './types';
 
-function getRootWindow(): Window {
-  let w: Window = window;
-  try { while ((w as any).parent && (w as any).parent !== w) w = (w as any).parent; } catch (_) { }
+type RootWindow = Window & { [key: string]: unknown };
+
+function getRootWindow(): RootWindow {
+  let w = window as unknown as RootWindow;
+  try {
+    while (w.parent && w.parent !== (w as unknown as Window)) {
+      w = w.parent as unknown as RootWindow;
+    }
+  } catch (_) { }
   return w;
 }
 
-export const ROOT = getRootWindow() as any;
+export const ROOT: RootWindow = getRootWindow();
 export const DOC_ID: string = document.baseURI || location.href || 'doc';
 const REGKEY = '__LIA_ANNOTATION_REG_V8__';
 const STOREKEY = '__LIA_ANNOTATION_STORE_V8__';
 
 ROOT[REGKEY] = ROOT[REGKEY] || { docs: {} };
-export const IS_DUPLICATE: boolean = !!ROOT[REGKEY].docs[DOC_ID];
-ROOT[REGKEY].docs[DOC_ID] = true;
+const _reg = ROOT[REGKEY] as { docs: Record<string, boolean> };
+export const IS_DUPLICATE: boolean = !!_reg.docs[DOC_ID];
+_reg.docs[DOC_ID] = true;
 
 ROOT[STOREKEY] = ROOT[STOREKEY] || {
   slides: {} as Record<string, SlideData>,
@@ -33,7 +40,7 @@ ROOT[STOREKEY] = ROOT[STOREKEY] || {
   }
 };
 
-export const STORE: Store = ROOT[STOREKEY];
+export const STORE: Store = ROOT[STOREKEY] as Store;
 
 export const STATE: State = {
   host: null,
