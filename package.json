@@ -1,0 +1,12 @@
+{
+  "name": "lia-annotation",
+  "version": "0.0.1",
+  "description": "LiaScript annotation overlay plugin — pen, eraser, undo/redo toolbar for live presentations",
+  "scripts": {
+    "build": "parcel build src/index.ts --dist-dir dist --no-scope-hoist"
+  },
+  "devDependencies": {
+    "parcel": "^2.13.3",
+    "typescript": "^5.8.3"
+  }
+}
