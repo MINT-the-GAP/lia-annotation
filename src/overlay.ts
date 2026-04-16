@@ -286,11 +286,20 @@ export function syncCanvasSize(): void {
 
   const hostRect = STATE.host.getBoundingClientRect();
   const cssW = getViewportWidth();
-  const cssH = Math.max(1, Math.ceil(Math.max(
-    (STATE.host as HTMLElement).scrollHeight || 0,
-    (STATE.host as HTMLElement).clientHeight || 0,
-    hostRect.height || 0
-  )));
+
+  // Measure the visible slide area, not the full <main> scroll height.
+  // Try .lia-slide or <section> inside the host first; fall back to the
+  // host's bounding rect, then clip to window.innerHeight so the canvas
+  // never balloons beyond the viewport on short slides.
+  const slide = STATE.host.querySelector<HTMLElement>('.lia-slide, section');
+  let cssH: number;
+  if (slide) {
+    const slideRect = slide.getBoundingClientRect();
+    cssH = Math.max(1, Math.ceil(slideRect.height || 0));
+  } else {
+    cssH = Math.max(1, Math.ceil(hostRect.height || 0));
+  }
+  cssH = Math.min(cssH, window.innerHeight);
 
   const offsetLeft = Math.round(-hostRect.left);
   STATE.cssW = cssW;
