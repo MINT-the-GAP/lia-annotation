@@ -31,6 +31,7 @@ export const CSS = `
     background: var(--lia-annot-bg);
     backdrop-filter: blur(12px) saturate(1.4);
     box-shadow: var(--lia-annot-shadow);
+    font-size: 14px;
   }
 
   .lia-annot-actions {
@@ -146,7 +147,7 @@ export const CSS = `
     background: var(--lia-annot-panel-bg);
     backdrop-filter: blur(12px) saturate(1.4);
     box-shadow: var(--lia-annot-panel-shadow);
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .lia-annot-panel[data-open="1"] {
@@ -163,7 +164,7 @@ export const CSS = `
   .lia-annot-row .k {
     min-width: 6em;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     opacity: .5;
@@ -173,7 +174,7 @@ export const CSS = `
     min-width: 3em;
     text-align: right;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
     opacity: .7;
   }
 
@@ -215,19 +216,19 @@ export const CSS = `
   .lia-annot-note {
     font-weight: 500;
     opacity: .6;
-    font-size: .9em;
+    font-size: .95em;
   }
 
   .lia-annot-danger {
     width: auto;
     min-height: 28px;
-    padding: 5px 12px;
+    padding: 6px 12px;
     border-radius: 8px;
     border: 1px solid rgba(220,50,50,0.35);
     background: rgba(220,50,50,0.07);
     color: #c0392b;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
     transition: background 0.15s;
   }

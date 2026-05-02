@@ -160,39 +160,148 @@ function getColors(): string[] {
   ];
 }
 
-function buildPenPanelHTML(): string {
+type UiLang = 'en' | 'de' | 'es';
+
+type UiTextKey =
+  | 'colors'
+  | 'penWidth'
+  | 'opacity'
+  | 'eraser'
+  | 'clearAll'
+  | 'penWidthAria'
+  | 'opacityAria'
+  | 'eraserWidthAria'
+  | 'colorAria'
+  | 'readOnlyNote';
+
+const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
+  colors: {
+    en: 'Colors',
+    de: 'Farben',
+    es: 'Colores'
+  },
+  penWidth: {
+    en: 'Pen Width',
+    de: 'Stiftbreite',
+    es: 'Grosor del lapiz'
+  },
+  opacity: {
+    en: 'Opacity',
+    de: 'Deckkraft',
+    es: 'Opacidad'
+  },
+  eraser: {
+    en: 'Eraser',
+    de: 'Radierer',
+    es: 'Borrador'
+  },
+  clearAll: {
+    en: 'Clear all',
+    de: 'Alles loschen',
+    es: 'Borrar todo'
+  },
+  penWidthAria: {
+    en: 'Pen width',
+    de: 'Stiftbreite',
+    es: 'Grosor del lapiz'
+  },
+  opacityAria: {
+    en: 'Opacity',
+    de: 'Deckkraft',
+    es: 'Opacidad'
+  },
+  eraserWidthAria: {
+    en: 'Eraser width',
+    de: 'Radierergrosse',
+    es: 'Tamano del borrador'
+  },
+  colorAria: {
+    en: 'Color',
+    de: 'Farbe',
+    es: 'Color'
+  },
+  readOnlyNote: {
+    en: 'Freeze/read-only mode: drawing is locked, show/hide still works.',
+    de: 'Freeze-/Nur-Lese-Modus: Zeichnen ist gesperrt, Anzeigen/Ausblenden funktioniert weiter.',
+    es: 'Modo congelado/solo lectura: dibujar esta bloqueado, mostrar/ocultar sigue funcionando.'
+  }
+};
+
+function normalizeUiLang(raw: string | null | undefined): UiLang | null {
+  if (!raw) return null;
+  const cleaned = String(raw).trim().toLowerCase().replace('_', '-');
+  if (!cleaned) return null;
+  const base = cleaned.split('-')[0];
+  if (base === 'de' || base === 'es' || base === 'en') return base;
+  return null;
+}
+
+function langFromHashSearch(): string {
+  const hash = String(location.hash || '');
+  const qIndex = hash.indexOf('?');
+  return qIndex >= 0 ? hash.slice(qIndex + 1) : '';
+}
+
+function detectUiLang(): UiLang {
+  try {
+    const search = new URLSearchParams(String(location.search || ''));
+    const fromSearch = normalizeUiLang(search.get('language') || search.get('lang'));
+    if (fromSearch) return fromSearch;
+
+    const hashSearch = new URLSearchParams(langFromHashSearch());
+    const fromHash = normalizeUiLang(hashSearch.get('language') || hashSearch.get('lang'));
+    if (fromHash) return fromHash;
+
+    const htmlLang = normalizeUiLang(document.documentElement && document.documentElement.lang);
+    if (htmlLang) return htmlLang;
+
+    const bodyLang = normalizeUiLang(document.body && (document.body.getAttribute('lang') || document.body.getAttribute('data-language')));
+    if (bodyLang) return bodyLang;
+
+    const navLang = normalizeUiLang((navigator && (navigator.language || (navigator.languages && navigator.languages[0]))) || '');
+    if (navLang) return navLang;
+  } catch (_) { }
+  return 'en';
+}
+
+function t(lang: UiLang, key: UiTextKey): string {
+  const entry = UI_TEXT[key];
+  return (entry && entry[lang]) || entry.en;
+}
+
+function buildPenPanelHTML(lang: UiLang): string {
   const colorButtons = getColors().map(function (c) {
-    return '<button class="lia-annot-color-item" type="button" data-color="' + c + '" aria-label="Color ' + c + '" data-snapshot-admin="1" style="background:' + c + ';"></button>';
+    return '<button class="lia-annot-color-item" type="button" data-color="' + c + '" aria-label="' + t(lang, 'colorAria') + ' ' + c + '" data-snapshot-admin="1" style="background:' + c + ';"></button>';
   }).join('');
 
   return `
     <div class="lia-annot-row">
-      <span class="k">Colors</span>
+      <span class="k">${t(lang, 'colors')}</span>
       <span class="lia-annot-color-grid">${colorButtons}</span>
     </div>
     <div class="lia-annot-row">
-      <span class="k">Pen width</span>
-      <input class="lia-annot-slider" type="range" min="1" max="24" step="1" value="${STORE.ui.width}" data-act="width" aria-label="Pen width" data-snapshot-admin="1">
+      <span class="k">${t(lang, 'penWidth')}</span>
+      <input class="lia-annot-slider" type="range" min="1" max="24" step="1" value="${STORE.ui.width}" data-act="width" aria-label="${t(lang, 'penWidthAria')}" data-snapshot-admin="1">
       <span class="v" data-k="width">${STORE.ui.width}</span>
     </div>
     <div class="lia-annot-row">
-      <span class="k">Opacity</span>
-      <input class="lia-annot-slider" type="range" min="0.1" max="1" step="0.05" value="${STORE.ui.alpha}" data-act="alpha" aria-label="Opacity" data-snapshot-admin="1">
+      <span class="k">${t(lang, 'opacity')}</span>
+      <input class="lia-annot-slider" type="range" min="0.1" max="1" step="0.05" value="${STORE.ui.alpha}" data-act="alpha" aria-label="${t(lang, 'opacityAria')}" data-snapshot-admin="1">
       <span class="v" data-k="alpha">${Math.round(Number(STORE.ui.alpha || 1) * 100)}%</span>
     </div>
     <div class="lia-annot-note" data-k="note"></div>
   `;
 }
 
-function buildEraserPanelHTML(): string {
+function buildEraserPanelHTML(lang: UiLang): string {
   return `
     <div class="lia-annot-row">
-      <span class="k">Eraser</span>
-      <input class="lia-annot-slider" type="range" min="4" max="80" step="1" value="${STORE.ui.eraserWidth}" data-act="eraserWidth" aria-label="Eraser width" data-snapshot-admin="1">
+      <span class="k">${t(lang, 'eraser')}</span>
+      <input class="lia-annot-slider" type="range" min="4" max="80" step="1" value="${STORE.ui.eraserWidth}" data-act="eraserWidth" aria-label="${t(lang, 'eraserWidthAria')}" data-snapshot-admin="1">
       <span class="v" data-k="eraserWidth">${STORE.ui.eraserWidth}</span>
     </div>
     <div class="lia-annot-row">
-      <button class="lia-annot-danger" type="button" data-act="clear" data-snapshot-admin="1">Clear all</button>
+      <button class="lia-annot-danger" type="button" data-act="clear" data-snapshot-admin="1">${t(lang, 'clearAll')}</button>
     </div>
     <div class="lia-annot-note" data-k="note"></div>
   `;
@@ -344,6 +453,7 @@ export function updateToolbar(): void {
   const bar = ensureToolbar();
   const slide = currentSlide();
   const ro = isReadOnly();
+  const lang = detectUiLang();
 
   const panel = bar.querySelector('.lia-annot-panel') as HTMLElement | null;
   if (panel) {
@@ -351,29 +461,32 @@ export function updateToolbar(): void {
     const wantedMode = (STORE.ui.panelMode === 'eraser') ? 'eraser' : 'pen';
     const builtMode = String(panel.dataset.builtMode || '');
     const builtRo = String(panel.dataset.builtRo || '');
+    const builtLang = String(panel.dataset.builtLang || '');
 
     panel.dataset.open = open;
 
     const needsRebuild =
       !panel.firstElementChild ||
       builtMode !== wantedMode ||
-      builtRo !== String(ro ? 1 : 0);
+      builtRo !== String(ro ? 1 : 0) ||
+      builtLang !== lang;
 
     if (needsRebuild) {
       if (wantedMode === 'eraser') {
-        panel.innerHTML = buildEraserPanelHTML();
+        panel.innerHTML = buildEraserPanelHTML(lang);
       } else {
-        panel.innerHTML = buildPenPanelHTML();
+        panel.innerHTML = buildPenPanelHTML(lang);
       }
       panel.dataset.builtMode = wantedMode;
       panel.dataset.builtRo = String(ro ? 1 : 0);
+      panel.dataset.builtLang = lang;
     }
   }
 
   const note = panel ? panel.querySelector('[data-k="note"]') : null;
   if (note) {
     note.textContent = ro
-      ? 'Freeze/read-only mode: drawing is locked, show/hide still works.'
+      ? t(lang, 'readOnlyNote')
       : '';
   }
 
