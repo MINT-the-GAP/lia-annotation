@@ -183,7 +183,7 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
   penWidth: {
     en: 'Pen Width',
     de: 'Stiftbreite',
-    es: 'Grosor del lapiz'
+    es: 'Grosor del lápiz'
   },
   opacity: {
     en: 'Opacity',
@@ -197,13 +197,13 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
   },
   clearAll: {
     en: 'Clear all',
-    de: 'Alles loschen',
+    de: 'Alles löschen',
     es: 'Borrar todo'
   },
   penWidthAria: {
     en: 'Pen width',
     de: 'Stiftbreite',
-    es: 'Grosor del lapiz'
+    es: 'Grosor del lápiz'
   },
   opacityAria: {
     en: 'Opacity',
@@ -212,8 +212,8 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
   },
   eraserWidthAria: {
     en: 'Eraser width',
-    de: 'Radierergrosse',
-    es: 'Tamano del borrador'
+    de: 'Radierergröße',
+    es: 'Tamaño del borrador'
   },
   colorAria: {
     en: 'Color',
@@ -223,13 +223,13 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
   readOnlyNote: {
     en: 'Freeze/read-only mode: drawing is locked, show/hide still works.',
     de: 'Freeze-/Nur-Lese-Modus: Zeichnen ist gesperrt, Anzeigen/Ausblenden funktioniert weiter.',
-    es: 'Modo congelado/solo lectura: dibujar esta bloqueado, mostrar/ocultar sigue funcionando.'
+    es: 'Modo congelado/solo lectura: dibujar está bloqueado, mostrar/ocultar sigue funcionando.'
   }
 };
 
 function normalizeUiLang(raw: string | null | undefined): UiLang | null {
   if (!raw) return null;
-  const cleaned = String(raw).trim().toLowerCase().replace('_', '-');
+  const cleaned = String(raw).trim().toLowerCase().replace(/_/g, '-');
   if (!cleaned) return null;
   const base = cleaned.split('-')[0];
   if (base === 'de' || base === 'es' || base === 'en') return base;
@@ -242,26 +242,29 @@ function langFromHashSearch(): string {
   return qIndex >= 0 ? hash.slice(qIndex + 1) : '';
 }
 
+let _cachedUiLang: UiLang | null = null;
+
 function detectUiLang(): UiLang {
+  if (_cachedUiLang) return _cachedUiLang;
   try {
     const search = new URLSearchParams(String(location.search || ''));
     const fromSearch = normalizeUiLang(search.get('language') || search.get('lang'));
-    if (fromSearch) return fromSearch;
+    if (fromSearch) return _cachedUiLang = fromSearch;
 
     const hashSearch = new URLSearchParams(langFromHashSearch());
     const fromHash = normalizeUiLang(hashSearch.get('language') || hashSearch.get('lang'));
-    if (fromHash) return fromHash;
+    if (fromHash) return _cachedUiLang = fromHash;
 
     const htmlLang = normalizeUiLang(document.documentElement && document.documentElement.lang);
-    if (htmlLang) return htmlLang;
+    if (htmlLang) return _cachedUiLang = htmlLang;
 
     const bodyLang = normalizeUiLang(document.body && (document.body.getAttribute('lang') || document.body.getAttribute('data-language')));
-    if (bodyLang) return bodyLang;
+    if (bodyLang) return _cachedUiLang = bodyLang;
 
     const navLang = normalizeUiLang((navigator && (navigator.language || (navigator.languages && navigator.languages[0]))) || '');
-    if (navLang) return navLang;
+    if (navLang) return _cachedUiLang = navLang;
   } catch (_) { }
-  return 'en';
+  return _cachedUiLang = 'en';
 }
 
 function t(lang: UiLang, key: UiTextKey): string {
