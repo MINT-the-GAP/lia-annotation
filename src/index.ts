@@ -15,9 +15,10 @@ import {
   syncOverlayInteractivity,
   requestSync,
   requestRedraw,
-  getVisibleMainHost
+  getVisibleMainHost,
+  setOverlayCallbacks
 } from './overlay';
-import { doUndo, doRedo, clearSlide, registerGlobalApi } from './api';
+import { doUndo, doRedo, clearSlide, registerGlobalApi, transferToNearestQuiz, isOcrAvailable, recognizeLatestAnnotationText, submitOcrTextToNearestQuiz } from './api';
 
 if (!IS_DUPLICATE) {
   // Wire up the callbacks that ui.ts needs to call back into overlay/api
@@ -28,11 +29,18 @@ if (!IS_DUPLICATE) {
     ensureOverlay,
     doUndo,
     doRedo,
-    clearSlide
+    clearSlide,
+    transferToNearestQuiz,
+    recognizeLatestAnnotationText,
+    submitOcrTextToNearestQuiz,
+    isOcrAvailable
   });
 
   // Give ui.ts a reference to getVisibleMainHost (defined in overlay.ts).
   setGetVisibleMainHost(getVisibleMainHost);
+  setOverlayCallbacks({
+    submitMarkedRect: transferToNearestQuiz
+  });
 
   ensureCss();
   applyThemeVars();
@@ -65,4 +73,13 @@ if (!IS_DUPLICATE) {
   try {
     themeMo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
   } catch (_) { }
+
+  let lastOcrAvailable = isOcrAvailable();
+  setInterval(function () {
+    const next = isOcrAvailable();
+    if (next !== lastOcrAvailable) {
+      lastOcrAvailable = next;
+      updateToolbar();
+    }
+  }, 1200);
 }

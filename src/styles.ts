@@ -47,6 +47,7 @@ export const CSS = `
     width: 32px;
     height: 32px;
     padding: 0;
+    position: relative;
     border: none;
     border-radius: 10px;
     background: transparent;
@@ -101,7 +102,22 @@ export const CSS = `
   .lia-annot-btn[data-act="eraser"] svg { transform: translateX(-4px); }
   .lia-annot-btn[data-act="undo"]   svg { transform: translateX(-4px); }
   .lia-annot-btn[data-act="redo"]   svg { transform: translateX(-3px); }
+  .lia-annot-btn[data-act="ocr-transfer"] svg { transform: translateX(1px); }
   .lia-annot-btn[data-act="toggle"] svg { transform: translateX(1px); }
+
+  .lia-annot-btn[data-busy="1"]::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 999px;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-top-color: var(--lia-annot-accent);
+    animation: lia-annot-spin 0.9s linear infinite;
+  }
+
+  @keyframes lia-annot-spin {
+    to { transform: rotate(360deg); }
+  }
 
   .lia-annot-btn .ico-stroke {
     stroke: var(--lia-annot-fg);
@@ -237,6 +253,103 @@ export const CSS = `
     background: rgba(220,50,50,0.14);
   }
 
+  .lia-annot-primary {
+    width: auto;
+    min-height: 30px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--lia-annot-border);
+    background: var(--lia-annot-accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .lia-annot-primary:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .lia-annot-row--ocr-title .k {
+    min-width: auto;
+  }
+
+  .lia-annot-row--ocr-input,
+  .lia-annot-row--ocr-actions {
+    align-items: stretch;
+  }
+
+  .lia-annot-row--ocr-actions {
+    gap: 8px;
+  }
+
+  .lia-annot-ocr-input {
+    width: 100%;
+    min-height: 72px;
+    border: 1px solid var(--lia-annot-border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    resize: vertical;
+    font: inherit;
+    color: var(--lia-annot-fg);
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  .lia-annot-ocr-preview {
+    display: none;
+    align-items: center;
+    min-height: 38px;
+    width: 100%;
+    border: 1px dashed var(--lia-annot-border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    overflow-x: auto;
+  }
+
+  .lia-annot-ocr-preview[data-on="1"] {
+    display: flex;
+  }
+
+  .lia-annot-ocr-preview-math {
+    width: 100%;
+    line-height: 1.3;
+  }
+
+  .lia-annot-tex-preview {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    max-width: 100%;
+    min-height: 34px;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    border: 2px solid var(--lia-annot-tex-preview-border, var(--lia-annot-accent));
+    border-radius: 999px;
+    background: transparent;
+    cursor: text;
+  }
+
+  .lia-annot-tex-preview[data-on="1"] {
+    display: inline-flex;
+  }
+
+  .lia-annot-tex-preview-math {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .lia-annot-tex-preview-hint {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: .58;
+    white-space: nowrap;
+  }
+
   /* ---- Layout overflow guards ---- */
 
   html, body {
@@ -305,5 +418,135 @@ export const CSS = `
   .lia-annot-shell[data-mode="pen"]    .lia-annot-canvas,
   .lia-annot-shell[data-mode="eraser"] .lia-annot-canvas {
     pointer-events: auto;
+  }
+
+  .lia-annot-shell[data-mode="rect"] .lia-annot-canvas {
+    pointer-events: auto;
+  }
+
+  .lia-annot-rect-progress {
+    position: absolute;
+    z-index: 501;
+    display: none;
+    left: 0;
+    top: 0;
+    width: 180px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 2px solid var(--lia-annot-border);
+    background: var(--lia-annot-bg);
+    backdrop-filter: blur(6px);
+    box-sizing: border-box;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .lia-annot-rect-progress[data-on="1"] {
+    display: flex;
+  }
+
+  .lia-annot-rect-progbar {
+    flex: 1 1 auto;
+    height: 8px;
+    border-radius: 999px;
+    border: 2px solid var(--lia-annot-border);
+    overflow: hidden;
+    box-sizing: border-box;
+    background: transparent;
+  }
+
+  .lia-annot-rect-progfill {
+    height: 100%;
+    width: 0%;
+    background: var(--lia-annot-accent);
+  }
+
+  .lia-annot-rect-progtxt {
+    font-weight: 800;
+    font-size: 11px;
+    min-width: 3.2em;
+    text-align: right;
+  }
+
+  .lia-annot-rect-submit,
+  .lia-annot-rect-clear {
+    position: absolute;
+    z-index: 502;
+    border: 1px solid var(--lia-annot-border);
+    box-shadow: var(--lia-annot-shadow);
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .lia-annot-rect-submit {
+    min-height: 32px;
+    padding: 6px 12px;
+    border-radius: 9px;
+    background: var(--lia-annot-accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .lia-annot-rect-clear {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--lia-annot-panel-bg);
+    color: var(--lia-annot-fg);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lia-annot-rect-choosequiz {
+    position: absolute;
+    z-index: 502;
+    min-height: 28px;
+    padding: 4px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--lia-annot-border);
+    box-shadow: var(--lia-annot-shadow);
+    background: var(--lia-annot-panel-bg);
+    color: var(--lia-annot-fg);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: auto;
+    cursor: pointer;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lia-annot-rect-choosequiz[data-state="chosen"] {
+    border-color: var(--lia-annot-accent);
+    color: var(--lia-annot-accent);
+  }
+
+  .lia-annot-rect-choosequiz[data-state="picking"] {
+    background: var(--lia-annot-accent);
+    color: #fff;
+    border-color: var(--lia-annot-accent);
+  }
+
+  /* Picking mode: show a crosshair cursor everywhere and highlight hovered inputs */
+  html.lia-annot-quiz-picking,
+  html.lia-annot-quiz-picking * {
+    cursor: crosshair !important;
+  }
+
+  html.lia-annot-quiz-picking input,
+  html.lia-annot-quiz-picking textarea,
+  html.lia-annot-quiz-picking [contenteditable="true"],
+  html.lia-annot-quiz-picking [role="textbox"] {
+    outline: 2px dashed var(--lia-annot-accent) !important;
+    outline-offset: 2px !important;
   }
 `;

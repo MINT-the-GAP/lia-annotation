@@ -1,6 +1,12 @@
 // All shared interfaces and type aliases for lia-annotation.
 
-export type Mode = 'cursor' | 'pen' | 'eraser';
+export type Mode = 'cursor' | 'pen' | 'eraser' | 'rect';
+
+export interface LiaTexOcrEngine {
+  model?: string;
+  recognize: (source: HTMLCanvasElement, opts?: Record<string, unknown>) => Promise<unknown>;
+  setModel?: (model: string) => Promise<void> | void;
+}
 
 // ----- Global declarations -----
 
@@ -17,9 +23,18 @@ declare global {
       setReadOnly: (v: boolean | null) => void;
       clearSlide: () => void;
       clearAllSlides: () => void;
+      isOcrAvailable: () => boolean;
+      recognizeLatestAnnotationText: () => Promise<string | null>;
+      submitOcrTextToNearestQuiz: (text: string) => boolean;
+      transferToNearestQuiz: () => Promise<boolean>;
       refresh: () => void;
       getStore: () => unknown;
       getSlideKey: () => string;
+    };
+    __LIA_TEX_OCR__?: LiaTexOcrEngine;
+    __LIA_CANVAS_OCR__?: {
+      ocr?: LiaTexOcrEngine;
+      [key: string]: unknown;
     };
     __LIA_ANNOTATION_EXPORT__: () => unknown;
     __LIA_ANNOTATION_IMPORT__: (payload: unknown, opts?: { replace?: boolean }) => boolean;
@@ -32,7 +47,7 @@ declare global {
     __liaAnnotBound?: boolean;
   }
 }
-export type PanelMode = 'pen' | 'eraser';
+export type PanelMode = 'pen' | 'eraser' | 'ocr';
 
 export interface Point { x: number; y: number; }
 
@@ -60,6 +75,8 @@ export interface UiState {
   width: number;
   alpha: number;
   eraserWidth: number;
+  ocrBusy: boolean;
+  ocrDraft: string;
   forcedReadOnly: boolean | null;
 }
 

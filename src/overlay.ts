@@ -2,7 +2,228 @@
 // resize observation, canvas event binding, drawing, and sync scheduling.
 
 import { STORE, STATE, clamp, toRel, fromRel, getSlideKey, ensureSlide, isReadOnly, effectiveMode, getLineWidthPx, getViewportWidth } from './store';
-import { updateToolbar, hideEraserRing, updateEraserRing, refreshEraserRing } from './ui';
+import { updateToolbar, hideEraserRing, updateEraserRing, refreshEraserRing, tUi } from './ui';
+
+type MarkRect = { x0: number; y0: number; x1: number; y1: number };
+
+let _markedRect: MarkRect | null = null;
+let _draftRect: MarkRect | null = null;
+
+let _overlayCallbacks: {
+  submitMarkedRect: () => Promise<boolean>;
+} | null = null;
+
+// Pinned quiz target: set via "Choose Quiz" button; overrides proximity search in api.ts.
+let _pinnedQuizTarget: Element | null = null;
+let _choosingQuiz = false;
+
+export function getPinnedQuizTarget(): Element | null { return _pinnedQuizTarget; }
+export function clearPinnedQuizTarget(): void { _pinnedQuizTarget = null; }
+
+let _rectProgRAF = 0;
+let _rectProgStart = 0;
+
+function setRectProgress01(v: number): void {
+  if (!STATE.shell) return;
+  const wrap = STATE.shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
+  const fill = STATE.shell.querySelector('.lia-annot-rect-progfill') as HTMLElement | null;
+  const txt = STATE.shell.querySelector('.lia-annot-rect-progtxt') as HTMLElement | null;
+  if (!wrap || !fill || !txt) return;
+  const p = Math.max(0, Math.min(1, Number(v)));
+  fill.style.width = Math.round(p * 100) + '%';
+  txt.textContent = Math.round(p * 100) + '%';
+}
+
+function showRectProgress(): void {
+  if (!STATE.shell) return;
+  const wrap = STATE.shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
+  if (!wrap) return;
+  wrap.dataset.on = '1';
+  setRectProgress01(0);
+  syncRectButtons();
+}
+
+function hideRectProgress(): void {
+  if (!STATE.shell) return;
+  const wrap = STATE.shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
+  if (!wrap) return;
+  wrap.dataset.on = '0';
+  setRectProgress01(0);
+}
+
+function startRectProgressPseudo(): void {
+  if (_rectProgRAF) {
+    cancelAnimationFrame(_rectProgRAF);
+    _rectProgRAF = 0;
+  }
+  showRectProgress();
+  _rectProgStart = performance.now();
+  const tick = function (): void {
+    const t = performance.now() - _rectProgStart;
+    let v = 0;
+    if (t < 900) v = (t / 900) * 0.7;
+    else if (t < 2200) v = 0.7 + ((t - 900) / 1300) * 0.2;
+    else v = 0.9 + Math.min(0.08, ((t - 2200) / 5000) * 0.08);
+    setRectProgress01(v);
+    _rectProgRAF = requestAnimationFrame(tick);
+  };
+  _rectProgRAF = requestAnimationFrame(tick);
+}
+
+function stopRectProgress(final01: number): void {
+  if (_rectProgRAF) {
+    cancelAnimationFrame(_rectProgRAF);
+    _rectProgRAF = 0;
+  }
+  setRectProgress01(final01);
+  setTimeout(function () { hideRectProgress(); }, 250);
+}
+
+export function setOverlayCallbacks(cb: { submitMarkedRect: () => Promise<boolean> }): void {
+  _overlayCallbacks = cb;
+}
+
+export function getMarkedRect(): { x: number; y: number; w: number; h: number } | null {
+  if (!_markedRect) return null;
+  const x = Math.min(_markedRect.x0, _markedRect.x1);
+  const y = Math.min(_markedRect.y0, _markedRect.y1);
+  const w = Math.max(1, Math.abs(_markedRect.x1 - _markedRect.x0));
+  const h = Math.max(1, Math.abs(_markedRect.y1 - _markedRect.y0));
+  return { x, y, w, h };
+}
+
+export function clearMarkedRect(): void {
+  _markedRect = null;
+  _draftRect = null;
+  requestRedraw();
+}
+
+function isPickableInput(el: Element | null): boolean {
+  if (!el) return false;
+  if (el.matches('input, textarea')) return true;
+  if (el.getAttribute('contenteditable') === 'true') return true;
+  if (el.getAttribute('role') === 'textbox') return true;
+  return false;
+}
+
+let _pickingClickHandler: ((e: MouseEvent) => void) | null = null;
+let _pickingKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+
+function exitQuizPickingMode(): void {
+  _choosingQuiz = false;
+  if (STATE.canvas) STATE.canvas.style.pointerEvents = '';
+  document.documentElement.classList.remove('lia-annot-quiz-picking');
+  if (_pickingClickHandler) { document.removeEventListener('click', _pickingClickHandler, true); _pickingClickHandler = null; }
+  if (_pickingKeyHandler) { document.removeEventListener('keydown', _pickingKeyHandler, true); _pickingKeyHandler = null; }
+  syncRectButtons();
+}
+
+function enterQuizPickingMode(): void {
+  if (_choosingQuiz) return;
+  _choosingQuiz = true;
+  if (STATE.canvas) STATE.canvas.style.pointerEvents = 'none';
+  document.documentElement.classList.add('lia-annot-quiz-picking');
+  syncRectButtons();
+
+  _pickingClickHandler = function (e: MouseEvent) {
+    const target = e.target as Element | null;
+    // Walk up to find a pickable input (in case user clicks label, etc.)
+    let el: Element | null = target;
+    while (el && el !== document.documentElement) {
+      if (isPickableInput(el)) break;
+      el = el.parentElement;
+    }
+    if (el && isPickableInput(el) && !el.closest('.lia-annot-shell')) {
+      e.preventDefault();
+      e.stopPropagation();
+      _pinnedQuizTarget = el;
+      exitQuizPickingMode();
+    } else if (el && el.closest('.lia-annot-rect-choosequiz')) {
+      // Handled by button's own click handler — do nothing here.
+    } else {
+      // Clicked outside any quiz field → cancel
+      exitQuizPickingMode();
+    }
+  };
+
+  _pickingKeyHandler = function (e: KeyboardEvent) {
+    if (e.key === 'Escape') exitQuizPickingMode();
+  };
+
+  document.addEventListener('click', _pickingClickHandler, true);
+  document.addEventListener('keydown', _pickingKeyHandler, true);
+}
+
+function syncRectButtons(): void {
+  if (!STATE.shell) return;
+  const submitBtn = STATE.shell.querySelector('.lia-annot-rect-submit') as HTMLButtonElement | null;
+  const clearBtn = STATE.shell.querySelector('.lia-annot-rect-clear') as HTMLButtonElement | null;
+  const chooseBtn = STATE.shell.querySelector('.lia-annot-rect-choosequiz') as HTMLButtonElement | null;
+  const prog = STATE.shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
+  if (!submitBtn || !clearBtn || !prog) return;
+
+  const rect = _markedRect;
+  const canShow = !!rect && STORE.ui.visible && !isReadOnly() && effectiveMode() === 'rect';
+  if (!canShow) {
+    submitBtn.style.display = 'none';
+    clearBtn.style.display = 'none';
+    prog.style.display = 'none';
+    if (chooseBtn) chooseBtn.style.display = 'none';
+    return;
+  }
+
+  submitBtn.style.display = 'block';
+  clearBtn.style.display = 'block';
+  prog.style.display = '';
+
+  const x = Math.min(rect!.x0, rect!.x1);
+  const y = Math.min(rect!.y0, rect!.y1);
+  const w = Math.max(1, Math.abs(rect!.x1 - rect!.x0));
+  const h = Math.max(1, Math.abs(rect!.y1 - rect!.y0));
+
+  const pad = 8;
+  const gap = 8;
+  const btnW = Math.max(110, submitBtn.offsetWidth || 140);
+  const btnH = Math.max(28, submitBtn.offsetHeight || 32);
+  const cls = Math.max(20, clearBtn.offsetWidth || 22);
+
+  const submitLeft = clamp(x + w - btnW, pad, Math.max(pad, STATE.cssW - btnW - pad));
+  const submitTop = clamp(y + h + gap, pad, Math.max(pad, STATE.cssH - btnH - pad));
+  submitBtn.style.left = submitLeft + 'px';
+  submitBtn.style.top = submitTop + 'px';
+
+  const progH = Math.max(24, prog.offsetHeight || 26);
+  prog.style.width = btnW + 'px';
+  prog.style.left = submitLeft + 'px';
+  prog.style.top = clamp(submitTop - progH - 6, pad, Math.max(pad, STATE.cssH - progH - pad)) + 'px';
+
+  const clearLeft = clamp(x + w - cls * 0.5, pad, Math.max(pad, STATE.cssW - cls - pad));
+  const clearTop = clamp(y - cls * 0.5, pad, Math.max(pad, STATE.cssH - cls - pad));
+  clearBtn.style.left = clearLeft + 'px';
+  clearBtn.style.top = clearTop + 'px';
+
+  if (chooseBtn) {
+    const chooseBtnH = Math.max(28, chooseBtn.offsetHeight || 32);
+    chooseBtn.style.display = 'block';
+    chooseBtn.style.width = btnW + 'px';
+    chooseBtn.style.left = submitLeft + 'px';
+    chooseBtn.style.top = clamp(submitTop + btnH + 4, pad, Math.max(pad, STATE.cssH - chooseBtnH - pad)) + 'px';
+    // Reflect current state on label
+    if (_choosingQuiz) {
+      chooseBtn.textContent = '✕ ' + tUi('rectChooseCancel');
+      chooseBtn.dataset.state = 'picking';
+    } else if (_pinnedQuizTarget) {
+      const label = (_pinnedQuizTarget as HTMLInputElement).placeholder
+        || (_pinnedQuizTarget as HTMLInputElement).name
+        || tUi('rectChosenFallback');
+      chooseBtn.textContent = '✓ ' + label;
+      chooseBtn.dataset.state = 'chosen';
+    } else {
+      chooseBtn.textContent = tUi('rectChooseQuiz');
+      chooseBtn.dataset.state = '';
+    }
+  }
+}
 
 // ----- Host detection -----
 
@@ -135,12 +356,42 @@ export function bindCanvasEvents(): void {
     }
   }
 
+  function startRectAt(x: number, y: number): void {
+    _draftRect = { x0: x, y0: y, x1: x, y1: y };
+  }
+
+  function updateRectTo(x: number, y: number): void {
+    if (!_draftRect) return;
+    _draftRect.x1 = x;
+    _draftRect.y1 = y;
+  }
+
+  function commitRect(): void {
+    if (!_draftRect) return;
+    const w = Math.abs(_draftRect.x1 - _draftRect.x0);
+    const h = Math.abs(_draftRect.y1 - _draftRect.y0);
+    if (w >= 6 && h >= 6) {
+      _markedRect = { ..._draftRect };
+    } else {
+      _markedRect = null;
+    }
+    _draftRect = null;
+  }
+
   STATE.canvas.addEventListener('pointerdown', function (evt: PointerEvent) {
     if (evt.pointerType === 'mouse' && evt.button !== 0) return;
     const p = rememberPointer(evt);
     if (!STORE.ui.visible || isReadOnly()) { hideEraserRing(); return; }
     const mode = effectiveMode();
     if (mode === 'eraser') { updateEraserRing(p.x, p.y); } else { hideEraserRing(); }
+    if (mode === 'rect') {
+      evt.preventDefault();
+      evt.stopPropagation();
+      startRectAt(p.x, p.y);
+      try { STATE.canvas!.setPointerCapture(evt.pointerId); } catch (_) { }
+      requestRedraw();
+      return;
+    }
     if (mode !== 'pen' && mode !== 'eraser') return;
     evt.preventDefault();
     evt.stopPropagation();
@@ -171,6 +422,13 @@ export function bindCanvasEvents(): void {
     } else {
       hideEraserRing();
     }
+    if (_draftRect) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      updateRectTo(p.x, p.y);
+      requestRedraw();
+      return;
+    }
     if (!STATE.drawing || !STATE.activePath) return;
     evt.preventDefault();
     evt.stopPropagation();
@@ -178,7 +436,18 @@ export function bindCanvasEvents(): void {
     requestRedraw();
   }, true);
 
-  STATE.canvas.addEventListener('pointerup', function (evt: PointerEvent) { finishStroke(evt, true); }, true);
+  STATE.canvas.addEventListener('pointerup', function (evt: PointerEvent) {
+    if (_draftRect) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      try { STATE.canvas!.releasePointerCapture(evt.pointerId); } catch (_) { }
+      commitRect();
+      requestRedraw();
+      updateToolbar();
+      return;
+    }
+    finishStroke(evt, true);
+  }, true);
   STATE.canvas.addEventListener('pointercancel', function (evt: PointerEvent) { finishStroke(evt, false); }, true);
   STATE.canvas.addEventListener('pointerleave', function () { STATE.lastPointer.inside = false; hideEraserRing(); }, true);
   STATE.canvas.addEventListener('contextmenu', function (evt: Event) { evt.preventDefault(); }, true);
@@ -222,6 +491,82 @@ export function ensureOverlay(): void {
       shell.appendChild(ring);
     }
 
+    let submitBtn = shell.querySelector('.lia-annot-rect-submit') as HTMLButtonElement | null;
+    if (!submitBtn) {
+      submitBtn = document.createElement('button');
+      submitBtn.type = 'button';
+      submitBtn.className = 'lia-annot-rect-submit';
+      submitBtn.textContent = tUi('rectSubmit');
+      submitBtn.style.display = 'none';
+      shell.appendChild(submitBtn);
+      submitBtn.addEventListener('pointerdown', function (evt) { evt.preventDefault(); evt.stopPropagation(); }, true);
+      submitBtn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (!_overlayCallbacks || !_markedRect || STORE.ui.ocrBusy) return;
+        startRectProgressPseudo();
+        void _overlayCallbacks.submitMarkedRect()
+          .then(function () {
+            updateToolbar();
+          })
+          .catch(function () { })
+          .finally(function () {
+            stopRectProgress(1);
+            syncRectButtons();
+          });
+      }, true);
+    }
+
+    let rectProg = shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
+    if (!rectProg) {
+      rectProg = document.createElement('div');
+      rectProg.className = 'lia-annot-rect-progress';
+      rectProg.dataset.on = '0';
+      rectProg.innerHTML = '<div class="lia-annot-rect-progbar"><div class="lia-annot-rect-progfill"></div></div><div class="lia-annot-rect-progtxt">0%</div>';
+      shell.appendChild(rectProg);
+      rectProg.addEventListener('pointerdown', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+      }, true);
+    }
+
+    let clearBtn = shell.querySelector('.lia-annot-rect-clear') as HTMLButtonElement | null;
+    if (!clearBtn) {
+      clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'lia-annot-rect-clear';
+      clearBtn.setAttribute('aria-label', tUi('rectClearAria'));
+      clearBtn.textContent = '×';
+      clearBtn.style.display = 'none';
+      shell.appendChild(clearBtn);
+      clearBtn.addEventListener('pointerdown', function (evt) { evt.preventDefault(); evt.stopPropagation(); }, true);
+      clearBtn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        clearMarkedRect();
+      }, true);
+    }
+
+    let chooseQuizBtn = shell.querySelector('.lia-annot-rect-choosequiz') as HTMLButtonElement | null;
+    if (!chooseQuizBtn) {
+      chooseQuizBtn = document.createElement('button');
+      chooseQuizBtn.type = 'button';
+      chooseQuizBtn.className = 'lia-annot-rect-choosequiz';
+      chooseQuizBtn.textContent = tUi('rectChooseQuiz');
+      chooseQuizBtn.style.display = 'none';
+      shell.appendChild(chooseQuizBtn);
+      chooseQuizBtn.addEventListener('pointerdown', function (evt) { evt.preventDefault(); evt.stopPropagation(); }, true);
+      chooseQuizBtn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (_choosingQuiz) {
+          exitQuizPickingMode();
+        } else {
+          enterQuizPickingMode();
+        }
+      }, true);
+    }
+
     insertShellAfterHeader(host, shell);
     STATE.shell = shell;
     STATE.canvas = canvas;
@@ -238,6 +583,7 @@ export function ensureOverlay(): void {
 
   if (slideChanged) STATE.slideKey = slideKey;
   syncOverlayInteractivity();
+  syncRectButtons();
 }
 
 export function syncOverlayInteractivity(): void {
@@ -267,7 +613,7 @@ export function syncOverlayInteractivity(): void {
   STATE.shell.dataset.mode = mode;
   STATE.shell.style.pointerEvents = 'none';
 
-  if (mode === 'pen' || mode === 'eraser') {
+  if (mode === 'pen' || mode === 'eraser' || mode === 'rect') {
     STATE.canvas.style.pointerEvents = 'auto';
     STATE.canvas.style.touchAction = 'none';
     STATE.canvas.style.cursor = 'crosshair';
@@ -278,6 +624,7 @@ export function syncOverlayInteractivity(): void {
   }
 
   if (mode === 'eraser') { refreshEraserRing(); } else { hideEraserRing(); }
+  syncRectButtons();
 }
 
 export function syncCanvasSize(): void {
@@ -318,6 +665,7 @@ export function syncCanvasSize(): void {
   if (STATE.canvas.height !== pxH) STATE.canvas.height = pxH;
 
   refreshEraserRing();
+  syncRectButtons();
 }
 
 export function requestSync(): void {
@@ -400,6 +748,28 @@ export function redrawNow(): void {
   for (let i = 0; i < slide.items.length; i++) {
     drawItem(ctx, slide.items[i]);
   }
+
+  const drawRect = function (rect: MarkRect, committed: boolean): void {
+    const x = Math.min(rect.x0, rect.x1);
+    const y = Math.min(rect.y0, rect.y1);
+    const w = Math.max(1, Math.abs(rect.x1 - rect.x0));
+    const h = Math.max(1, Math.abs(rect.y1 - rect.y0));
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--lia-annot-accent').trim() || '#3b82f6';
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = committed ? 0.22 : 0.16;
+    ctx.fillStyle = accent;
+    ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = accent;
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
+  };
+
+  if (_markedRect) drawRect(_markedRect, true);
+  if (_draftRect) drawRect(_draftRect, false);
+  syncRectButtons();
 }
 
 export function requestRedraw(): void {

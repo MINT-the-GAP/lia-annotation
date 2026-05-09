@@ -100,6 +100,16 @@ function iconRedo(): string {
   </svg>`;
 }
 
+function iconOcrTransfer(): string {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path class="ico-stroke" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M4.1 4.6 H19.2 Q20.9 4.6 20.9 6.3 V16.0 M17.2 19.8 H4.1 Q2.4 19.8 2.4 18.1 V6.3 Q2.4 4.6 4.1 4.6"/>
+    <path class="ico-stroke" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M5.2 12.7l1.9 1.9 4.0-4.8"/>
+    <path class="ico-stroke" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M13.8 9.9c0-2.2 4.8-2.2 4.8 0 0 1.6-2.4 1.8-2.4 3.6"/>
+    <circle cx="16.2" cy="16.6" r="0.92" class="ico-fill"/>
+    <path class="ico-stroke" stroke-width="1.4" stroke-linecap="round" d="M19.4 19.0H24.0 M21.7 16.7V21.3"/>
+  </svg>`;
+}
+
 export function iconEye(open: boolean): string {
   if (open) {
     return `<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -160,7 +170,7 @@ function getColors(): string[] {
   ];
 }
 
-type UiLang = 'en' | 'de' | 'es';
+export type UiLang = 'en' | 'de' | 'es' | 'fr';
 
 type UiTextKey =
   | 'colors'
@@ -168,6 +178,16 @@ type UiTextKey =
   | 'opacity'
   | 'eraser'
   | 'clearAll'
+  | 'ocrTransfer'
+  | 'rectSubmit'
+  | 'rectChooseQuiz'
+  | 'rectChooseCancel'
+  | 'rectChosenFallback'
+  | 'rectClearAria'
+  | 'ocrRecognize'
+  | 'ocrSubmit'
+  | 'ocrResult'
+  | 'ocrHint'
   | 'penWidthAria'
   | 'opacityAria'
   | 'eraserWidthAria'
@@ -200,30 +220,95 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
     de: 'Alles löschen',
     es: 'Borrar todo'
   },
+  ocrTransfer: {
+    en: 'Submit as solution',
+    de: 'Als Lösung übernehmen',
+    es: 'Enviar como solucion',
+    fr: 'Soumettre comme solution'
+  },
+  rectSubmit: {
+    en: 'Submit as Solution',
+    de: 'Als Lösung übernehmen',
+    es: 'Enviar como solucion',
+    fr: 'Soumettre comme solution'
+  },
+  rectChooseQuiz: {
+    en: 'Choose Quiz',
+    de: 'Quiz wählen',
+    es: 'Elegir quiz',
+    fr: 'Choisir quiz'
+  },
+  rectChooseCancel: {
+    en: 'Cancel',
+    de: 'Abbrechen',
+    es: 'Cancelar',
+    fr: 'Annuler'
+  },
+  rectChosenFallback: {
+    en: 'Quiz',
+    de: 'Quiz',
+    es: 'Quiz',
+    fr: 'Quiz'
+  },
+  rectClearAria: {
+    en: 'Clear marked rectangle',
+    de: 'Markiertes Rechteck löschen',
+    es: 'Borrar rectangulo marcado',
+    fr: 'Effacer le rectangle marqué'
+  },
+  ocrRecognize: {
+    en: 'Recognize',
+    de: 'Erkennen',
+    es: 'Reconocer',
+    fr: 'Reconnaître'
+  },
+  ocrSubmit: {
+    en: 'Insert into quiz',
+    de: 'In Quizfeld einsetzen',
+    es: 'Insertar en quiz',
+    fr: 'Insérer dans le quiz'
+  },
+  ocrResult: {
+    en: 'OCR Result',
+    de: 'OCR Ergebnis',
+    es: 'Resultado OCR',
+    fr: 'Résultat OCR'
+  },
+  ocrHint: {
+    en: 'Preview updates automatically as TeX.',
+    de: 'Vorschau aktualisiert sich automatisch als TeX.',
+    es: 'La vista previa se actualiza automaticamente como TeX.',
+    fr: 'L\'aperçu se met automatiquement à jour en TeX.'
+  },
   penWidthAria: {
     en: 'Pen width',
     de: 'Stiftbreite',
-    es: 'Grosor del lápiz'
+    es: 'Grosor del lápiz',
+    fr: 'Épaisseur du stylo'
   },
   opacityAria: {
     en: 'Opacity',
     de: 'Deckkraft',
-    es: 'Opacidad'
+    es: 'Opacidad',
+    fr: 'Opacité'
   },
   eraserWidthAria: {
     en: 'Eraser width',
     de: 'Radierergröße',
-    es: 'Tamaño del borrador'
+    es: 'Tamaño del borrador',
+    fr: 'Taille de la gomme'
   },
   colorAria: {
     en: 'Color',
     de: 'Farbe',
-    es: 'Color'
+    es: 'Color',
+    fr: 'Couleur'
   },
   readOnlyNote: {
     en: 'Freeze/read-only mode: drawing is locked, show/hide still works.',
     de: 'Freeze-/Nur-Lese-Modus: Zeichnen ist gesperrt, Anzeigen/Ausblenden funktioniert weiter.',
-    es: 'Modo congelado/solo lectura: dibujar está bloqueado, mostrar/ocultar sigue funcionando.'
+    es: 'Modo congelado/solo lectura: dibujar está bloqueado, mostrar/ocultar sigue funcionando.',
+    fr: 'Mode figé/lecture seule: dessin verrouillé, afficher/masquer fonctionne encore.'
   }
 };
 
@@ -232,7 +317,7 @@ function normalizeUiLang(raw: string | null | undefined): UiLang | null {
   const cleaned = String(raw).trim().toLowerCase().replace(/_/g, '-');
   if (!cleaned) return null;
   const base = cleaned.split('-')[0];
-  if (base === 'de' || base === 'es' || base === 'en') return base;
+  if (base === 'de' || base === 'es' || base === 'en' || base === 'fr') return base;
   return null;
 }
 
@@ -270,6 +355,11 @@ function detectUiLang(): UiLang {
 function t(lang: UiLang, key: UiTextKey): string {
   const entry = UI_TEXT[key];
   return (entry && entry[lang]) || entry.en;
+}
+
+export function tUi(key: UiTextKey, lang?: UiLang): string {
+  const resolved = lang || detectUiLang();
+  return t(resolved, key);
 }
 
 function buildPenPanelHTML(lang: UiLang): string {
@@ -310,6 +400,113 @@ function buildEraserPanelHTML(lang: UiLang): string {
   `;
 }
 
+function buildOcrPanelHTML(lang: UiLang): string {
+  const draft = String(STORE.ui.ocrDraft || '');
+  return `
+    <div class="lia-annot-row lia-annot-row--ocr-title">
+      <span class="k">${t(lang, 'ocrResult')}</span>
+    </div>
+    <div class="lia-annot-row lia-annot-row--ocr-input">
+      <textarea class="lia-annot-ocr-input" data-act="ocr-input" rows="3" data-snapshot-admin="1">${draft}</textarea>
+    </div>
+    <div class="lia-annot-row lia-annot-row--ocr-actions">
+      <button class="lia-annot-primary" type="button" data-act="ocr-recognize" data-snapshot-admin="1">${t(lang, 'ocrRecognize')}</button>
+      <button class="lia-annot-primary" type="button" data-act="ocr-submit" data-snapshot-admin="1">${t(lang, 'ocrSubmit')}</button>
+    </div>
+    <div class="lia-annot-ocr-preview" data-on="0">
+      <div class="lia-annot-ocr-preview-math" data-k="ocrPreview"></div>
+    </div>
+    <div class="lia-annot-note" data-k="ocrHint">${t(lang, 'ocrHint')}</div>
+    <div class="lia-annot-note" data-k="note"></div>
+  `;
+}
+
+let _katexLoadPromise: Promise<unknown> | null = null;
+
+function ensureKatexLoaded(): Promise<unknown> {
+  const own = window as Window & { katex?: unknown; KaTeX?: unknown };
+  const root = window.top as Window & { katex?: unknown; KaTeX?: unknown } | null;
+  const existing = own.katex || (root && root.katex) || own.KaTeX || (root && root.KaTeX);
+  if (existing && typeof (existing as Record<string, unknown>).render === 'function') {
+    return Promise.resolve(existing);
+  }
+
+  if (_katexLoadPromise) return _katexLoadPromise;
+
+  _katexLoadPromise = (async function () {
+    if (!document.getElementById('__lia_annot_katex_css_v1')) {
+      const link = document.createElement('link');
+      link.id = '__lia_annot_katex_css_v1';
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+      (document.head || document.documentElement).appendChild(link);
+    }
+
+    const mod = await (new Function('u', 'return import(u)'))('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.mjs');
+    const katex = (mod as Record<string, unknown>).default || mod;
+    if (!katex || typeof (katex as Record<string, unknown>).render !== 'function') {
+      throw new Error('KaTeX render not available');
+    }
+
+    try { if (!own.katex) own.katex = katex; } catch (_) { }
+    try {
+      if (root && !root.katex) root.katex = katex;
+    } catch (_) { }
+
+    return katex;
+  })();
+
+  return _katexLoadPromise;
+}
+
+function renderKatexInto(target: HTMLElement, latex: string): void {
+  const src = String(latex || '').trim();
+  target.innerHTML = '';
+  if (!src) return;
+
+  const own = window as Window & { katex?: unknown; KaTeX?: unknown };
+  const root = window.top as Window & { katex?: unknown; KaTeX?: unknown } | null;
+  const k = own.katex || (root && root.katex) || own.KaTeX || (root && root.KaTeX);
+
+  try {
+    if (k && typeof (k as Record<string, unknown>).render === 'function') {
+      (k as { render: (s: string, el: HTMLElement, opts: Record<string, unknown>) => void })
+        .render(src, target, { throwOnError: false, displayMode: false });
+      return;
+    }
+  } catch (_) { }
+
+  target.textContent = src;
+  ensureKatexLoaded().then(function (loaded) {
+    if (!target.isConnected) return;
+    target.innerHTML = '';
+    try {
+      (loaded as { render: (s: string, el: HTMLElement, opts: Record<string, unknown>) => void })
+        .render(src, target, { throwOnError: false, displayMode: false });
+    } catch (_) {
+      target.textContent = src;
+    }
+  }).catch(function () {
+    if (!target.isConnected) return;
+    target.textContent = src;
+  });
+}
+
+function updateOcrPanelPreview(panel: HTMLElement | null): void {
+  if (!panel) return;
+  const preview = panel.querySelector('.lia-annot-ocr-preview') as HTMLElement | null;
+  const math = panel.querySelector('[data-k="ocrPreview"]') as HTMLElement | null;
+  if (!preview || !math) return;
+  const value = String(STORE.ui.ocrDraft || '').trim();
+  if (!value) {
+    preview.dataset.on = '0';
+    math.textContent = '';
+    return;
+  }
+  preview.dataset.on = '1';
+  renderKatexInto(math, value);
+}
+
 // ----- Toolbar -----
 
 // Imported lazily to avoid circular dependency: overlay/api call updateToolbar,
@@ -324,6 +521,10 @@ let _callbacks: {
   doUndo: () => void;
   doRedo: () => void;
   clearSlide: () => void;
+  recognizeLatestAnnotationText: () => Promise<string | null>;
+  submitOcrTextToNearestQuiz: (text: string) => boolean;
+  transferToNearestQuiz: () => Promise<boolean>;
+  isOcrAvailable: () => boolean;
 } | null = null;
 
 export function setToolbarCallbacks(cb: typeof _callbacks): void {
@@ -344,6 +545,7 @@ export function ensureToolbar(): HTMLElement {
       <button class="lia-annot-btn" type="button" data-act="eraser" aria-label="Eraser" aria-pressed="false" title="Eraser" data-snapshot-admin="1">${iconEraser()}</button>
       <button class="lia-annot-btn" type="button" data-act="undo" aria-label="Undo" title="Undo" data-snapshot-admin="1">${iconUndo()}</button>
       <button class="lia-annot-btn" type="button" data-act="redo" aria-label="Redo" title="Redo" data-snapshot-admin="1">${iconRedo()}</button>
+      <button class="lia-annot-btn" type="button" data-act="ocr-transfer" aria-label="Submit as solution" title="Submit as solution" data-snapshot-admin="1">${iconOcrTransfer()}</button>
       <button class="lia-annot-btn" type="button" data-act="toggle" aria-label="Show/hide annotations" aria-pressed="true" title="Show/hide annotations" data-snapshot-admin="1">${iconEye(true)}</button>
     </div>
     <div class="lia-annot-panel" data-open="0"></div>
@@ -423,6 +625,33 @@ export function ensureToolbar(): HTMLElement {
       _callbacks?.clearSlide();
       return;
     }
+    if (act === 'ocr-transfer') {
+      if (isReadOnly() || !STORE.ui.visible || !_callbacks?.isOcrAvailable()) return;
+      STORE.ui.panelOpen = false;
+      STORE.ui.mode = 'rect';
+      _callbacks?.syncOverlayInteractivity();
+      updateToolbar();
+      return;
+    }
+    if (act === 'ocr-recognize') {
+      if (isReadOnly() || STORE.ui.ocrBusy || !STORE.ui.visible) return;
+      if (!_callbacks || !_callbacks.isOcrAvailable() || !_callbacks.recognizeLatestAnnotationText) return;
+      void _callbacks.recognizeLatestAnnotationText().then(function (text) {
+        if (typeof text === 'string' && text.trim()) {
+          STORE.ui.ocrDraft = text;
+        }
+        updateToolbar();
+        _callbacks?.requestSync();
+      });
+      return;
+    }
+    if (act === 'ocr-submit') {
+      if (isReadOnly() || STORE.ui.ocrBusy || !_callbacks?.submitOcrTextToNearestQuiz) return;
+      _callbacks.submitOcrTextToNearestQuiz(String(STORE.ui.ocrDraft || ''));
+      _callbacks.requestSync();
+      updateToolbar();
+      return;
+    }
   }, true);
 
   bar.addEventListener('input', function (e) {
@@ -446,6 +675,11 @@ export function ensureToolbar(): HTMLElement {
       updateToolbar();
       return;
     }
+    if (act === 'ocr-input') {
+      STORE.ui.ocrDraft = String((t as HTMLTextAreaElement).value || '');
+      updateOcrPanelPreview(bar.querySelector('.lia-annot-panel') as HTMLElement | null);
+      return;
+    }
   }, true);
 
   STATE.toolbar = bar;
@@ -461,7 +695,9 @@ export function updateToolbar(): void {
   const panel = bar.querySelector('.lia-annot-panel') as HTMLElement | null;
   if (panel) {
     const open = (STORE.ui.panelOpen && !ro) ? '1' : '0';
-    const wantedMode = (STORE.ui.panelMode === 'eraser') ? 'eraser' : 'pen';
+    const wantedMode = (STORE.ui.panelMode === 'eraser')
+      ? 'eraser'
+      : (STORE.ui.panelMode === 'ocr' ? 'ocr' : 'pen');
     const builtMode = String(panel.dataset.builtMode || '');
     const builtRo = String(panel.dataset.builtRo || '');
     const builtLang = String(panel.dataset.builtLang || '');
@@ -477,12 +713,18 @@ export function updateToolbar(): void {
     if (needsRebuild) {
       if (wantedMode === 'eraser') {
         panel.innerHTML = buildEraserPanelHTML(lang);
+      } else if (wantedMode === 'ocr') {
+        panel.innerHTML = buildOcrPanelHTML(lang);
       } else {
         panel.innerHTML = buildPenPanelHTML(lang);
       }
       panel.dataset.builtMode = wantedMode;
       panel.dataset.builtRo = String(ro ? 1 : 0);
       panel.dataset.builtLang = lang;
+    }
+
+    if (wantedMode === 'ocr') {
+      updateOcrPanelPreview(panel);
     }
   }
 
@@ -494,14 +736,20 @@ export function updateToolbar(): void {
   }
 
   const btns = bar.querySelectorAll('.lia-annot-btn[data-act]');
+  const ocrAvailable = !!_callbacks?.isOcrAvailable && _callbacks.isOcrAvailable();
+  if (!ocrAvailable && STORE.ui.mode === 'rect') {
+    STORE.ui.mode = 'cursor';
+  }
   btns.forEach(function (btn) {
     const el = btn as HTMLButtonElement;
     const act = String(el.getAttribute('data-act') || '');
     el.dataset.active = '0';
+    el.dataset.busy = '0';
 
     if (act === 'cursor' && STORE.ui.mode === 'cursor') el.dataset.active = '1';
     if (act === 'pen' && STORE.ui.mode === 'pen') el.dataset.active = '1';
     if (act === 'eraser' && STORE.ui.mode === 'eraser') el.dataset.active = '1';
+    if (act === 'ocr-transfer' && STORE.ui.mode === 'rect') el.dataset.active = '1';
     if (act === 'toggle') {
       el.dataset.active = STORE.ui.visible ? '1' : '0';
       el.innerHTML = iconEye(!!STORE.ui.visible);
@@ -516,6 +764,14 @@ export function updateToolbar(): void {
       el.disabled = ro || slide.items.length === 0;
     } else if (act === 'redo') {
       el.disabled = ro || slide.redo.length === 0;
+    } else if (act === 'ocr-transfer') {
+      const disableOcr = ro || !STORE.ui.visible || STORE.ui.ocrBusy || !ocrAvailable;
+      el.disabled = disableOcr;
+      el.hidden = !ocrAvailable;
+      el.style.display = ocrAvailable ? '' : 'none';
+      el.dataset.busy = STORE.ui.ocrBusy ? '1' : '0';
+      el.title = t(lang, 'ocrTransfer');
+      el.setAttribute('aria-label', t(lang, 'ocrTransfer'));
     } else if (act === 'pen' || act === 'eraser') {
       el.disabled = ro;
     } else {
@@ -538,6 +794,9 @@ export function updateToolbar(): void {
     const widthSlider = panel.querySelector('input[data-act="width"]') as HTMLInputElement | null;
     const alphaSlider = panel.querySelector('input[data-act="alpha"]') as HTMLInputElement | null;
     const eraserSlider = panel.querySelector('input[data-act="eraserWidth"]') as HTMLInputElement | null;
+    const ocrInput = panel.querySelector('textarea[data-act="ocr-input"]') as HTMLTextAreaElement | null;
+    const ocrRecognizeBtn = panel.querySelector('button[data-act="ocr-recognize"]') as HTMLButtonElement | null;
+    const ocrSubmitBtn = panel.querySelector('button[data-act="ocr-submit"]') as HTMLButtonElement | null;
 
     const wTxt = panel.querySelector('[data-k="width"]');
     const aTxt = panel.querySelector('[data-k="alpha"]');
@@ -546,10 +805,15 @@ export function updateToolbar(): void {
     if (widthSlider && document.activeElement !== widthSlider) widthSlider.value = String(STORE.ui.width);
     if (alphaSlider && document.activeElement !== alphaSlider) alphaSlider.value = String(STORE.ui.alpha);
     if (eraserSlider && document.activeElement !== eraserSlider) eraserSlider.value = String(STORE.ui.eraserWidth);
+    if (ocrInput && document.activeElement !== ocrInput) ocrInput.value = String(STORE.ui.ocrDraft || '');
 
     if (wTxt) wTxt.textContent = String(STORE.ui.width);
     if (aTxt) aTxt.textContent = Math.round(Number(STORE.ui.alpha || 1) * 100) + '%';
     if (eTxt) eTxt.textContent = String(STORE.ui.eraserWidth);
+
+    if (ocrInput) ocrInput.disabled = ro || STORE.ui.ocrBusy;
+    if (ocrRecognizeBtn) ocrRecognizeBtn.disabled = ro || STORE.ui.ocrBusy || !ocrAvailable;
+    if (ocrSubmitBtn) ocrSubmitBtn.disabled = ro || STORE.ui.ocrBusy || !String(STORE.ui.ocrDraft || '').trim();
   }
 
   if (effectiveMode() === 'eraser' && STORE.ui.visible && !ro && STATE.lastPointer && STATE.lastPointer.inside) {

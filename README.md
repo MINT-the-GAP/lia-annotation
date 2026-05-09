@@ -1,5 +1,5 @@
 <!--
-author:   MINT-the-GAP
+author:   MINT-the-GAP, Martin Lommatzsch, Jihad
 version:  0.0.1
 language: en
 edit: true
@@ -7,6 +7,8 @@ narrator: US English Female
 comment:  Annotation overlay for LiaScript — pen, eraser, undo/redo toolbar for live presentations.
 
 script:   ./dist/index.js
+
+import: https://raw.githubusercontent.com/MINT-the-GAP/lia-canvas-ocr/main/README.md
 
 -->
 
@@ -16,6 +18,16 @@ script:   ./dist/index.js
 This plugin adds a fixed toolbar on the left side of every LiaScript slide.
 Use it to draw freehand annotations with a pen, erase strokes, undo/redo, and
 toggle the overlay on or off — all without leaving presentation mode.
+
+If an OCR engine is loaded, the toolbar shows an extra OCR button for a
+rectangle workflow in the style of lia-canvas-ocr:
+
+1. Click OCR in the toolbar
+2. Draw a rectangle around the handwritten solution
+3. Click `Submit as Solution` near the rectangle
+
+The selected area is recognized and inserted into the nearest answer field as
+LaTeX.
 
 __Try it on LiaScript:__
 https://liascript.github.io/course/?https://raw.githubusercontent.com/MINT-the-GAP/lia-annotation/main/README.md
@@ -44,7 +56,38 @@ The toolbar appears on the left edge of the viewport in presentation mode.
 | Eraser | Erase strokes; click again to open the eraser options panel |
 | Undo   | Undo the last stroke |
 | Redo   | Redo the last undone stroke |
+| OCR    | Submit latest handwritten annotation as solution (only visible if OCR is loaded) |
 | Eye    | Show or hide all annotations on the current slide |
+
+## OCR integration
+
+          --{{0}}--
+The OCR button appears automatically as soon as one of these providers is
+available:
+
+- `window.__LIA_TEX_OCR__`
+- `window.__LIA_CANVAS_OCR__.ocr`
+
+If you use lia-canvas-ocr, keep this import in your header:
+
+`import: https://raw.githubusercontent.com/MINT-the-GAP/lia-canvas-ocr/main/README.md`
+
+When OCR text is inserted into a quiz field, a compact TeX preview is shown
+automatically (preview hides while the field is focused for editing).
+
+
+---
+
+Testquiz 1: Answer: 1234
+
+[[  1234  ]] 
+
+---
+
+Testquiz 2: Answer: 5678
+
+[[  5678  ]] 
+
 
 ## Pen options panel
 

@@ -36,11 +36,15 @@ ROOT[STOREKEY] = ROOT[STOREKEY] || {
     width: 3,
     alpha: 1,
     eraserWidth: 18,
+    ocrBusy: false,
+    ocrDraft: '',
     forcedReadOnly: null as boolean | null
   }
 };
 
 export const STORE: Store = ROOT[STOREKEY] as Store;
+if (typeof STORE.ui.ocrBusy !== 'boolean') STORE.ui.ocrBusy = false;
+if (typeof STORE.ui.ocrDraft !== 'string') STORE.ui.ocrDraft = '';
 
 export const STATE: State = {
   host: null,
