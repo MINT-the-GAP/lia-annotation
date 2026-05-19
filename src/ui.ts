@@ -188,6 +188,7 @@ type UiTextKey =
   | 'ocrSubmit'
   | 'ocrResult'
   | 'ocrHint'
+  | 'ocrFailed'
   | 'penWidthAria'
   | 'opacityAria'
   | 'eraserWidthAria'
@@ -198,27 +199,32 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
   colors: {
     en: 'Colors',
     de: 'Farben',
-    es: 'Colores'
+    es: 'Colores',
+    fr: 'Couleurs'
   },
   penWidth: {
     en: 'Pen Width',
     de: 'Stiftbreite',
-    es: 'Grosor del lápiz'
+    es: 'Grosor del lápiz',
+    fr: 'Épaisseur du stylo'
   },
   opacity: {
     en: 'Opacity',
     de: 'Deckkraft',
-    es: 'Opacidad'
+    es: 'Opacidad',
+    fr: 'Opacité'
   },
   eraser: {
     en: 'Eraser',
     de: 'Radierer',
-    es: 'Borrador'
+    es: 'Borrador',
+    fr: 'Gomme'
   },
   clearAll: {
     en: 'Clear all',
     de: 'Alles löschen',
-    es: 'Borrar todo'
+    es: 'Borrar todo',
+    fr: 'Tout effacer'
   },
   ocrTransfer: {
     en: 'Submit as solution',
@@ -279,6 +285,12 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
     de: 'Vorschau aktualisiert sich automatisch als TeX.',
     es: 'La vista previa se actualiza automaticamente como TeX.',
     fr: 'L\'aperçu se met automatiquement à jour en TeX.'
+  },
+  ocrFailed: {
+    en: 'Recognition failed. Try drawing more clearly.',
+    de: 'Erkennung fehlgeschlagen. Bitte deutlicher schreiben.',
+    es: 'Reconocimiento fallido. Intente escribir más claro.',
+    fr: 'Reconnaissance échouée. Essayez d\'écrire plus clairement.'
   },
   penWidthAria: {
     en: 'Pen width',
@@ -636,9 +648,13 @@ export function ensureToolbar(): HTMLElement {
     if (act === 'ocr-recognize') {
       if (isReadOnly() || STORE.ui.ocrBusy || !STORE.ui.visible) return;
       if (!_callbacks || !_callbacks.isOcrAvailable() || !_callbacks.recognizeLatestAnnotationText) return;
+      STORE.ui.ocrFailed = false;
       void _callbacks.recognizeLatestAnnotationText().then(function (text) {
         if (typeof text === 'string' && text.trim()) {
           STORE.ui.ocrDraft = text;
+          STORE.ui.ocrFailed = false;
+        } else {
+          STORE.ui.ocrFailed = true;
         }
         updateToolbar();
         _callbacks?.requestSync();
@@ -814,6 +830,12 @@ export function updateToolbar(): void {
     if (ocrInput) ocrInput.disabled = ro || STORE.ui.ocrBusy;
     if (ocrRecognizeBtn) ocrRecognizeBtn.disabled = ro || STORE.ui.ocrBusy || !ocrAvailable;
     if (ocrSubmitBtn) ocrSubmitBtn.disabled = ro || STORE.ui.ocrBusy || !String(STORE.ui.ocrDraft || '').trim();
+
+    const ocrHint = panel.querySelector('[data-k="ocrHint"]') as HTMLElement | null;
+    if (ocrHint) {
+      ocrHint.textContent = STORE.ui.ocrFailed ? t(lang, 'ocrFailed') : t(lang, 'ocrHint');
+      ocrHint.style.color = STORE.ui.ocrFailed ? 'var(--lia-annot-danger, #c0392b)' : '';
+    }
   }
 
   if (effectiveMode() === 'eraser' && STORE.ui.visible && !ro && STATE.lastPointer && STATE.lastPointer.inside) {

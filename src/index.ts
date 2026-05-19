@@ -1,6 +1,6 @@
 // Entry point: dedup guard, then boot the plugin and register all event listeners.
 
-import { IS_DUPLICATE, getSlideKey, ensureSlide } from './store';
+import { IS_DUPLICATE, STORE, getSlideKey, ensureSlide } from './store';
 import {
   applyThemeVars,
   ensureCss,
@@ -16,7 +16,9 @@ import {
   requestSync,
   requestRedraw,
   getVisibleMainHost,
-  setOverlayCallbacks
+  setOverlayCallbacks,
+  clearMarkedRect,
+  exitQuizPickingMode
 } from './overlay';
 import { doUndo, doRedo, clearSlide, registerGlobalApi, transferToNearestQuiz, isOcrAvailable, recognizeLatestAnnotationText, submitOcrTextToNearestQuiz } from './api';
 
@@ -58,6 +60,11 @@ if (!IS_DUPLICATE) {
 
   window.addEventListener('resize', function () { applyThemeVars(); ensureToolbar(); requestSync(); });
   window.addEventListener('hashchange', function () {
+    exitQuizPickingMode();
+    clearMarkedRect();
+    STORE.ui.ocrBusy = false;
+    STORE.ui.ocrDraft = '';
+    STORE.ui.ocrFailed = false;
     ensureSlide(getSlideKey());
     ensureOverlay();
     updateToolbar();

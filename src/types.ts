@@ -77,6 +77,7 @@ export interface UiState {
   eraserWidth: number;
   ocrBusy: boolean;
   ocrDraft: string;
+  ocrFailed: boolean;
   forcedReadOnly: boolean | null;
 }
 

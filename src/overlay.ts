@@ -109,7 +109,7 @@ function isPickableInput(el: Element | null): boolean {
 let _pickingClickHandler: ((e: MouseEvent) => void) | null = null;
 let _pickingKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
-function exitQuizPickingMode(): void {
+export function exitQuizPickingMode(): void {
   _choosingQuiz = false;
   if (STATE.canvas) STATE.canvas.style.pointerEvents = '';
   document.documentElement.classList.remove('lia-annot-quiz-picking');
@@ -508,9 +508,10 @@ export function ensureOverlay(): void {
         void _overlayCallbacks.submitMarkedRect()
           .then(function () {
             updateToolbar();
+            stopRectProgress(1);
+            syncRectButtons();
           })
-          .catch(function () { })
-          .finally(function () {
+          .catch(function () {
             stopRectProgress(1);
             syncRectButtons();
           });
