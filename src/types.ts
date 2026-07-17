@@ -27,6 +27,7 @@ declare global {
       recognizeLatestAnnotationText: () => Promise<string | null>;
       submitOcrTextToNearestQuiz: (text: string) => boolean;
       transferToNearestQuiz: () => Promise<boolean>;
+      startDgsPlacementMode: () => void;
       refresh: () => void;
       getStore: () => unknown;
       getSlideKey: () => string;
@@ -61,9 +62,20 @@ export interface PathItem {
   points: Point[];
 }
 
+export interface DgsWidget {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  spec?: string;
+  language?: 'de' | 'en';
+}
+
 export interface SlideData {
   items: PathItem[];
   redo: PathItem[];
+  widgets?: DgsWidget[];
 }
 
 export interface UiState {

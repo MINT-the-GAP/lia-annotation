@@ -18,9 +18,10 @@ import {
   getVisibleMainHost,
   setOverlayCallbacks,
   clearMarkedRect,
-  exitQuizPickingMode
+  exitQuizPickingMode,
+  startDgsPlacementMode
 } from './overlay';
-import { doUndo, doRedo, clearSlide, registerGlobalApi, transferToNearestQuiz, isOcrAvailable, recognizeLatestAnnotationText, submitOcrTextToNearestQuiz } from './api';
+import { doUndo, doRedo, clearSlide, registerGlobalApi, transferToNearestQuiz, isOcrAvailable, recognizeLatestAnnotationText, submitOcrTextToNearestQuiz, shouldPromptDgsInsert } from './api';
 
 if (!IS_DUPLICATE) {
   // Wire up the callbacks that ui.ts needs to call back into overlay/api
@@ -35,13 +36,15 @@ if (!IS_DUPLICATE) {
     transferToNearestQuiz,
     recognizeLatestAnnotationText,
     submitOcrTextToNearestQuiz,
-    isOcrAvailable
+    isOcrAvailable,
+    startDgsPlacementMode
   });
 
   // Give ui.ts a reference to getVisibleMainHost (defined in overlay.ts).
   setGetVisibleMainHost(getVisibleMainHost);
   setOverlayCallbacks({
-    submitMarkedRect: transferToNearestQuiz
+    submitMarkedRect: transferToNearestQuiz,
+    shouldPromptDgsInsert
   });
 
   ensureCss();

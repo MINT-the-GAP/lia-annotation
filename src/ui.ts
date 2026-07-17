@@ -110,6 +110,15 @@ function iconOcrTransfer(): string {
   </svg>`;
 }
 
+function iconCoord(): string {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path class="ico-stroke" d="M3.5 12h16.2" stroke-width="1.8" stroke-linecap="round"/>
+    <path class="ico-stroke" d="M12 20.5V4.3" stroke-width="1.8" stroke-linecap="round"/>
+    <path class="ico-stroke" d="M19.7 12l-2.1-1.2m2.1 1.2-2.1 1.2" stroke-width="1.8" stroke-linecap="round"/>
+    <path class="ico-stroke" d="M12 4.3l-1.2 2.1m1.2-2.1 1.2 2.1" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>`;
+}
+
 export function iconEye(open: boolean): string {
   if (open) {
     return `<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -537,6 +546,7 @@ let _callbacks: {
   submitOcrTextToNearestQuiz: (text: string) => boolean;
   transferToNearestQuiz: () => Promise<boolean>;
   isOcrAvailable: () => boolean;
+  startDgsPlacementMode: () => void;
 } | null = null;
 
 export function setToolbarCallbacks(cb: typeof _callbacks): void {
@@ -557,6 +567,7 @@ export function ensureToolbar(): HTMLElement {
       <button class="lia-annot-btn" type="button" data-act="eraser" aria-label="Eraser" aria-pressed="false" title="Eraser" data-snapshot-admin="1">${iconEraser()}</button>
       <button class="lia-annot-btn" type="button" data-act="undo" aria-label="Undo" title="Undo" data-snapshot-admin="1">${iconUndo()}</button>
       <button class="lia-annot-btn" type="button" data-act="redo" aria-label="Redo" title="Redo" data-snapshot-admin="1">${iconRedo()}</button>
+      <button class="lia-annot-btn" type="button" data-act="dgs-place" aria-label="Place coordinate system" title="Place coordinate system" data-snapshot-admin="1">${iconCoord()}</button>
       <button class="lia-annot-btn" type="button" data-act="ocr-transfer" aria-label="Submit as solution" title="Submit as solution" data-snapshot-admin="1">${iconOcrTransfer()}</button>
       <button class="lia-annot-btn" type="button" data-act="toggle" aria-label="Show/hide annotations" aria-pressed="true" title="Show/hide annotations" data-snapshot-admin="1">${iconEye(true)}</button>
     </div>
@@ -642,6 +653,13 @@ export function ensureToolbar(): HTMLElement {
       STORE.ui.panelOpen = false;
       STORE.ui.mode = 'rect';
       _callbacks?.syncOverlayInteractivity();
+      updateToolbar();
+      return;
+    }
+    if (act === 'dgs-place') {
+      if (isReadOnly() || !STORE.ui.visible || !_callbacks?.startDgsPlacementMode) return;
+      STORE.ui.panelOpen = false;
+      _callbacks.startDgsPlacementMode();
       updateToolbar();
       return;
     }
@@ -780,6 +798,8 @@ export function updateToolbar(): void {
       el.disabled = ro || slide.items.length === 0;
     } else if (act === 'redo') {
       el.disabled = ro || slide.redo.length === 0;
+    } else if (act === 'dgs-place') {
+      el.disabled = ro || !STORE.ui.visible;
     } else if (act === 'ocr-transfer') {
       const disableOcr = ro || !STORE.ui.visible || STORE.ui.ocrBusy || !ocrAvailable;
       el.disabled = disableOcr;

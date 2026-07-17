@@ -10,6 +10,10 @@ script:   ./dist/index.js
 
 import: https://raw.githubusercontent.com/MINT-the-GAP/lia-canvas-ocr/main/README.md
 
+import: https://raw.githubusercontent.com/liaTemplates/JSXGraph/main/README.md
+
+import: https://raw.githubusercontent.com/MINT-the-GAP/lia-coordinate/refs/heads/main/README.md
+
 -->
 
 # LiaScript Annotation Plugin
@@ -28,6 +32,11 @@ rectangle workflow in the style of lia-canvas-ocr:
 
 The selected area is recognized and inserted into the nearest answer field as
 LaTeX.
+
+When a hand-drawn coordinate-axis sketch is detected (rough horizontal +
+vertical axis crossing), a small prompt can appear to create a DGS coordinate
+system. If you confirm, the plugin switches to a crosshair placement mode and
+you can place the coordinate system with one click.
 
 __Try it on LiaScript:__
 https://liascript.github.io/course/?https://raw.githubusercontent.com/MINT-the-GAP/lia-annotation/main/README.md
@@ -57,6 +66,7 @@ The toolbar appears on the left edge of the viewport in presentation mode.
 | Undo   | Undo the last stroke |
 | Redo   | Redo the last undone stroke |
 | OCR    | Submit latest handwritten annotation as solution (only visible if OCR is loaded) |
+| Coord  | Place a coordinate system manually |
 | Eye    | Show or hide all annotations on the current slide |
 
 ## OCR integration
@@ -74,6 +84,23 @@ If you use lia-canvas-ocr, keep this import in your header:
 
 When OCR text is inserted into a quiz field, a compact TeX preview is shown
 automatically (preview hides while the field is focused for editing).
+
+## Sketch-to-DGS placement (experimental, currently disabled)
+
+          --{{0}}--
+The sketch recognition path is currently switched off. The toolbar still
+contains the manual coordinate-system button, but automatic conversion from a
+rough axis sketch is disabled for now while the heuristics are being revised.
+
+If JSXGraph (or `lia-coordinate`) is available, the plugin can later convert a
+rough axis sketch into a placed coordinate-system widget:
+
+1. Draw a simple axis sketch with the pen (one horizontal and one vertical line)
+2. Confirm the prompt `Create a DGS coordinate system?`
+3. Place it via crosshair click
+
+If no JSXGraph runtime is reachable, the plugin falls back to a static axis
+preview widget.
 
 
 ---

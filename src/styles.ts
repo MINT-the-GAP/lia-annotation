@@ -102,6 +102,7 @@ export const CSS = `
   .lia-annot-btn[data-act="eraser"] svg { transform: translateX(-4px); }
   .lia-annot-btn[data-act="undo"]   svg { transform: translateX(-4px); }
   .lia-annot-btn[data-act="redo"]   svg { transform: translateX(-3px); }
+  .lia-annot-btn[data-act="dgs-place"] svg { transform: translateX(1px); }
   .lia-annot-btn[data-act="ocr-transfer"] svg { transform: translateX(1px); }
   .lia-annot-btn[data-act="toggle"] svg { transform: translateX(1px); }
 
@@ -422,6 +423,153 @@ export const CSS = `
 
   .lia-annot-shell[data-mode="rect"] .lia-annot-canvas {
     pointer-events: auto;
+  }
+
+  .lia-annot-shell[data-mode="place"] .lia-annot-canvas {
+    pointer-events: auto;
+    cursor: crosshair;
+  }
+
+  .lia-annot-dgs-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 500;
+  }
+
+  .lia-annot-dgs-widget {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: 18px 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+    pointer-events: auto;
+    clear: both;
+  }
+
+  .lia-annot-dgs-board {
+    position: relative;
+    width: min(240px, 100%);
+    height: 180px;
+    background: transparent;
+  }
+
+  .lia-annot-dgs-fallback {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .lia-annot-dgs-fallback .axis {
+    stroke: #1f2937;
+    stroke-width: 2;
+  }
+
+  .lia-annot-dgs-fallback .arrow {
+    fill: #1f2937;
+  }
+
+  .lia-annot-dgs-prompt {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    z-index: 503;
+    display: none;
+    width: min(280px, calc(100% - 28px));
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--lia-annot-border);
+    background: var(--lia-annot-panel-bg);
+    box-shadow: var(--lia-annot-panel-shadow);
+    pointer-events: auto;
+  }
+
+  .lia-annot-dgs-prompt[data-on="1"] {
+    display: block;
+  }
+
+  .lia-annot-dgs-prompt-title {
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0.72;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+
+  .lia-annot-dgs-prompt-sub {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .lia-annot-dgs-prompt-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .lia-annot-dgs-prompt-actions button {
+    border: 1px solid var(--lia-annot-border);
+    border-radius: 8px;
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .lia-annot-dgs-yes {
+    background: var(--lia-annot-accent);
+    color: #fff;
+  }
+
+  .lia-annot-dgs-no {
+    background: var(--lia-annot-panel-bg);
+    color: var(--lia-annot-fg);
+  }
+
+  .lia-annot-dgs-crosshair {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    border: 1px solid var(--lia-annot-accent);
+    pointer-events: none;
+    display: none;
+    z-index: 503;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.9) inset;
+  }
+
+  .lia-annot-dgs-crosshair::before,
+  .lia-annot-dgs-crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--lia-annot-accent);
+    opacity: 0.9;
+  }
+
+  .lia-annot-dgs-crosshair::before {
+    left: 50%;
+    top: 3px;
+    width: 1px;
+    height: calc(100% - 6px);
+    transform: translateX(-50%);
+  }
+
+  .lia-annot-dgs-crosshair::after {
+    top: 50%;
+    left: 3px;
+    height: 1px;
+    width: calc(100% - 6px);
+    transform: translateY(-50%);
+  }
+
+  .lia-annot-dgs-crosshair[data-on="1"] {
+    display: block;
   }
 
   .lia-annot-rect-progress {

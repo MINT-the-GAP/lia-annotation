@@ -112,7 +112,10 @@ export function getSlideKey(): string {
 }
 
 export function ensureSlide(key: string): SlideData {
-  STORE.slides[key] = STORE.slides[key] || { items: [], redo: [] };
+  STORE.slides[key] = STORE.slides[key] || { items: [], redo: [], widgets: [] };
+  if (!Array.isArray((STORE.slides[key] as SlideData).widgets)) {
+    (STORE.slides[key] as SlideData).widgets = [];
+  }
   return STORE.slides[key];
 }
 

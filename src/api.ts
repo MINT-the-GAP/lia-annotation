@@ -4,7 +4,7 @@
 
 import type { Mode, Point, PathItem, SlideData, LiaTexOcrEngine } from './types';
 import { STORE, STATE, ROOT, clamp, copyJson, getSlideKey, ensureSlide, currentSlide, isReadOnly, getLineWidthPx, fromRel } from './store';
-import { ensureOverlay, syncOverlayInteractivity, requestSync, requestRedraw, getMarkedRect, getVisibleMainHost, getPinnedQuizTarget } from './overlay';
+import { ensureOverlay, syncOverlayInteractivity, requestSync, requestRedraw, getMarkedRect, getVisibleMainHost, getPinnedQuizTarget, startDgsPlacementMode } from './overlay';
 import { updateToolbar } from './ui';
 
 // ----- Undo / Redo / Clear -----
@@ -29,6 +29,7 @@ export function clearSlide(): void {
   const s = currentSlide();
   s.items = [];
   s.redo = [];
+  s.widgets = [];
   requestRedraw();
   updateToolbar();
 }
@@ -88,6 +89,10 @@ function getOcrEngine(): LiaTexOcrEngine | null {
 
 export function isOcrAvailable(): boolean {
   return !!getOcrEngine();
+}
+
+export function shouldPromptDgsInsert(): boolean {
+  return false;
 }
 
 function getPathBBox(item: PathItem): BBox | null {
@@ -1010,6 +1015,29 @@ export function sanitizeFreezeSlides(srcSlides: unknown): Record<string, SlideDa
   return out;
 }
 
+function sanitizeWidget(widget: unknown): { id: string; x: number; y: number; w: number; h: number; spec?: string; language?: 'de' | 'en' } | null {
+  if (!widget || typeof widget !== 'object') return null;
+  const obj = widget as Record<string, unknown>;
+  const id = String(obj.id || '').trim();
+  if (!id) return null;
+  const x = Number(obj.x);
+  const y = Number(obj.y);
+  const w = Number(obj.w);
+  const h = Number(obj.h);
+  if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return null;
+  const spec = String(obj.spec || '').trim();
+  const languageRaw = String(obj.language || '').trim().toLowerCase();
+  return {
+    id,
+    x: Math.max(0, Math.round(x)),
+    y: Math.max(0, Math.round(y)),
+    w: Math.max(120, Math.round(w)),
+    h: Math.max(90, Math.round(h)),
+    spec: spec || undefined,
+    language: languageRaw === 'de' ? 'de' : languageRaw === 'en' ? 'en' : undefined
+  };
+}
+
 export function hasFreezeData(): boolean {
   const slides = sanitizeFreezeSlides(STORE.slides);
   for (const k in slides) {
@@ -1051,7 +1079,10 @@ export function importState(payload: unknown, opts?: { replace?: boolean }): boo
       if (!src || typeof src !== 'object') continue;
       STORE.slides[k] = {
         items: Array.isArray(src.items) ? copyJson(src.items) as PathItem[] : [],
-        redo: Array.isArray(src.redo) ? copyJson(src.redo) as PathItem[] : []
+        redo: Array.isArray(src.redo) ? copyJson(src.redo) as PathItem[] : [],
+        widgets: Array.isArray(src.widgets)
+          ? src.widgets.map(sanitizeWidget).filter((w): w is { id: string; x: number; y: number; w: number; h: number } => w !== null)
+          : []
       };
     }
   }
@@ -1126,6 +1157,7 @@ export function registerGlobalApi(): void {
     recognizeLatestAnnotationText,
     submitOcrTextToNearestQuiz,
     transferToNearestQuiz,
+    startDgsPlacementMode,
     refresh: function () { ensureOverlay(); requestSync(); updateToolbar(); },
     getStore: function () { return copyJson(STORE); },
     getSlideKey: function () { return getSlideKey(); }
