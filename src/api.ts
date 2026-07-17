@@ -92,7 +92,7 @@ export function isOcrAvailable(): boolean {
 }
 
 export function shouldPromptDgsInsert(): boolean {
-  return false;
+  return true;
 }
 
 function getPathBBox(item: PathItem): BBox | null {

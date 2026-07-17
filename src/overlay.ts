@@ -461,42 +461,35 @@ function strokeClusterKey(cluster: PenGeom[]): string {
   }).join('|');
 }
 
-function clusterStrokeGeoms(geoms: PenGeom[]): Array<{ geoms: PenGeom[]; maxIndex: number }> {
-  const clusters: Array<{ geoms: PenGeom[]; maxIndex: number }> = [];
-  const used = new Set<number>();
+function areStrokeGeomsConnected(a: PenGeom, b: PenGeom): boolean {
+  const centerDist = Math.hypot(a.cx - b.cx, a.cy - b.cy);
+  if (centerDist <= 220) return true;
+  return segmentDistance(a.startX, a.startY, a.endX, a.endY, b.startX, b.startY, b.endX, b.endY) <= 120;
+}
 
-  function isConnected(a: PenGeom, b: PenGeom): boolean {
-    const centerDist = Math.hypot(a.cx - b.cx, a.cy - b.cy);
-    if (centerDist <= 220) return true;
-    return segmentDistance(a.startX, a.startY, a.endX, a.endY, b.startX, b.startY, b.endX, b.endY) <= 120;
-  }
+function getTailConnectedStrokeGeoms(geoms: PenGeom[], maxTail: number): PenGeom[] {
+  if (!geoms.length) return [];
 
-  for (let i = 0; i < geoms.length; i++) {
-    if (used.has(i)) continue;
-    const stack = [i];
-    const cluster: PenGeom[] = [];
-    let maxIndex = i;
-    used.add(i);
+  const tail: PenGeom[] = [geoms[geoms.length - 1]];
 
-    while (stack.length) {
-      const idx = stack.pop() as number;
-      const current = geoms[idx];
-      cluster.push(current);
-      if (idx > maxIndex) maxIndex = idx;
-      for (let j = 0; j < geoms.length; j++) {
-        if (used.has(j)) continue;
-        if (!isConnected(current, geoms[j])) continue;
-        used.add(j);
-        stack.push(j);
+  for (let i = geoms.length - 2; i >= 0; i--) {
+    const candidate = geoms[i];
+    let connected = false;
+    for (let j = 0; j < tail.length; j++) {
+      if (areStrokeGeomsConnected(candidate, tail[j])) {
+        connected = true;
+        break;
       }
     }
 
-    clusters.push({ geoms: cluster, maxIndex: maxIndex });
+    // Only a consecutive connected suffix is valid for triggering.
+    if (!connected) break;
+
+    tail.unshift(candidate);
+    if (tail.length >= maxTail) break;
   }
 
-  return clusters.sort(function (a, b) {
-    return b.maxIndex - a.maxIndex;
-  });
+  return tail;
 }
 
 function pointInExpandedSegmentBounds(
@@ -541,12 +534,12 @@ function pickTipAndInward(g: PenGeom, mode: 'right' | 'up'): {
 function hasArrowSignatureAtTip(axis: PenGeom, tipIsEnd: boolean): boolean {
   if (!axis.isArrowLike) return false;
   if (tipIsEnd) {
-    return axis.bendNearEnd >= 1 || axis.endBacktrack >= 0.02;
+    return axis.bendNearEnd >= 2 || axis.endBacktrack >= 0.06;
   }
-  return axis.bendNearStart >= 1 || axis.startBacktrack >= 0.02;
+  return axis.bendNearStart >= 2 || axis.startBacktrack >= 0.06;
 }
 
-function hasDetachedArrowCueNearTip(
+function findDetachedArrowCueNearTip(
   geoms: PenGeom[],
   axisA: PenGeom,
   axisB: PenGeom,
@@ -554,7 +547,7 @@ function hasDetachedArrowCueNearTip(
   tipY: number,
   inwardX: number,
   inwardY: number
-): boolean {
+): number {
   for (let i = 0; i < geoms.length; i++) {
     const g = geoms[i];
     if (g === axisA || g === axisB) continue;
@@ -570,9 +563,9 @@ function hasDetachedArrowCueNearTip(
     const towardInward = (mx - tipX) * inwardX + (my - tipY) * inwardY;
     if (towardInward < -6) continue;
 
-    return true;
+    return i;
   }
-  return false;
+  return -1;
 }
 
 function looksLikeAxisSketch(): boolean {
@@ -584,13 +577,11 @@ function looksLikeAxisSketch(): boolean {
     .filter((g): g is PenGeom => g !== null);
 
   if (allGeoms.length < 2) return false;
-  const geoms = allGeoms.slice(-18);
+  const geoms = allGeoms.slice(-26);
 
   if (geoms.length < 2) return false;
 
-  const clusters = clusterStrokeGeoms(geoms);
-  const clusterEntry = clusters[0] || null;
-  const cluster = clusterEntry ? clusterEntry.geoms : [];
+  const cluster = getTailConnectedStrokeGeoms(geoms, 10);
   if (cluster.length < 2) return false;
 
   const clusterKey = strokeClusterKey(cluster);
@@ -657,15 +648,18 @@ function looksLikeAxisSketch(): boolean {
       const rightTip = pickTipAndInward(h, 'right');
       const upTip = pickTipAndInward(v, 'up');
 
-      const rightArrow =
-        hasArrowSignatureAtTip(h, rightTip.tipIsEnd) ||
-        hasDetachedArrowCueNearTip(geoms, h, v, rightTip.tipX, rightTip.tipY, rightTip.inwardX, rightTip.inwardY);
+      const rightInlineArrow = hasArrowSignatureAtTip(h, rightTip.tipIsEnd);
+      const rightCueIdx = findDetachedArrowCueNearTip(cluster, h, v, rightTip.tipX, rightTip.tipY, rightTip.inwardX, rightTip.inwardY);
+      const rightArrow = rightInlineArrow || rightCueIdx >= 0;
       if (!rightArrow) continue;
 
-      const upArrow =
-        hasArrowSignatureAtTip(v, upTip.tipIsEnd) ||
-        hasDetachedArrowCueNearTip(geoms, h, v, upTip.tipX, upTip.tipY, upTip.inwardX, upTip.inwardY);
+      const upInlineArrow = hasArrowSignatureAtTip(v, upTip.tipIsEnd);
+      const upCueIdx = findDetachedArrowCueNearTip(cluster, h, v, upTip.tipX, upTip.tipY, upTip.inwardX, upTip.inwardY);
+      const upArrow = upInlineArrow || upCueIdx >= 0;
       if (!upArrow) continue;
+
+      // A single detached mark must not satisfy both arrowheads.
+      if (rightCueIdx >= 0 && upCueIdx >= 0 && rightCueIdx === upCueIdx) continue;
 
       _lastPromptClusterKey = clusterKey;
 

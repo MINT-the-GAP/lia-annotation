@@ -12,7 +12,7 @@ import: https://raw.githubusercontent.com/MINT-the-GAP/lia-canvas-ocr/main/READM
 
 import: https://raw.githubusercontent.com/liaTemplates/JSXGraph/main/README.md
 
-import: https://raw.githubusercontent.com/MINT-the-GAP/lia-coordinate/refs/heads/main/README.md
+import: https://raw.githubusercontent.com/MINT-the-GAP/lia-coordinate/refs/heads/Proposal/README.md
 
 -->
 
@@ -85,15 +85,15 @@ If you use lia-canvas-ocr, keep this import in your header:
 When OCR text is inserted into a quiz field, a compact TeX preview is shown
 automatically (preview hides while the field is focused for editing).
 
-## Sketch-to-DGS placement (experimental, currently disabled)
+## Sketch-to-DGS placement (experimental)
 
           --{{0}}--
-The sketch recognition path is currently switched off. The toolbar still
-contains the manual coordinate-system button, but automatic conversion from a
-rough axis sketch is disabled for now while the heuristics are being revised.
+The sketch recognition path is active again, but still experimental.
+Only the newest connected stroke block is evaluated as a coordinate candidate,
+so unrelated older strokes should no longer trigger the DGS prompt.
 
-If JSXGraph (or `lia-coordinate`) is available, the plugin can later convert a
-rough axis sketch into a placed coordinate-system widget:
+If JSXGraph (or `lia-coordinate`) is available, the plugin can convert a rough
+axis sketch into a placed coordinate-system widget:
 
 1. Draw a simple axis sketch with the pen (one horizontal and one vertical line)
 2. Confirm the prompt `Create a DGS coordinate system?`
