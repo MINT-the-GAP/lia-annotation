@@ -12,7 +12,7 @@ import: https://raw.githubusercontent.com/MINT-the-GAP/lia-canvas-ocr/main/READM
 
 import: https://raw.githubusercontent.com/liaTemplates/JSXGraph/main/README.md
 
-import: https://raw.githubusercontent.com/MINT-the-GAP/lia-coordinate/refs/heads/Proposal/README.md
+import: https://raw.githubusercontent.com/MINT-the-GAP/lia-coordinate/refs/heads/main/README.md
 
 -->
 
