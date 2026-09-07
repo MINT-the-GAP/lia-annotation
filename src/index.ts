@@ -85,11 +85,15 @@ if (!IS_DUPLICATE) {
   } catch (_) { }
 
   let lastOcrAvailable = isOcrAvailable();
-  setInterval(function () {
+  const ocrPollId = window.setInterval(function () {
     const next = isOcrAvailable();
     if (next !== lastOcrAvailable) {
       lastOcrAvailable = next;
       updateToolbar();
     }
   }, 1200);
+
+  // The poll runs for the lifetime of the document; stop it if the page goes
+  // away so it does not keep firing in a cached/restored page.
+  window.addEventListener('pagehide', function () { window.clearInterval(ocrPollId); });
 }

@@ -3,7 +3,7 @@
 // and the window.__LIA_ANNOTATION__ global.
 
 import type { Mode, Point, PathItem, SlideData, LiaTexOcrEngine } from './types';
-import { STORE, STATE, ROOT, clamp, copyJson, getSlideKey, ensureSlide, currentSlide, isReadOnly, getLineWidthPx, fromRel } from './store';
+import { STORE, STATE, ROOT, clamp, copyJson, getSlideKey, ensureSlide, currentSlide, isReadOnly } from './store';
 import { ensureOverlay, syncOverlayInteractivity, requestSync, requestRedraw, getMarkedRect, getVisibleMainHost, getPinnedQuizTarget, startDgsPlacementMode } from './overlay';
 import { updateToolbar } from './ui';
 
@@ -44,7 +44,6 @@ export function clearAllSlides(): void {
 // ----- OCR integration -----
 
 type BBox = { x: number; y: number; w: number; h: number };
-type AnnotationSource = { box: BBox; paths: PathItem[] };
 
 function pickOcrEngine(host: unknown): LiaTexOcrEngine | null {
   if (!host || typeof host !== 'object') return null;
@@ -93,148 +92,6 @@ export function isOcrAvailable(): boolean {
 
 export function shouldPromptDgsInsert(): boolean {
   return true;
-}
-
-function getPathBBox(item: PathItem): BBox | null {
-  if (!item || item.kind !== 'path' || item.tool !== 'pen' || !Array.isArray(item.points) || !item.points.length) return null;
-
-  let xMin = Infinity;
-  let yMin = Infinity;
-  let xMax = -Infinity;
-  let yMax = -Infinity;
-
-  for (let i = 0; i < item.points.length; i++) {
-    const pt = fromRel(item.points[i]);
-    if (!isFinite(pt.x) || !isFinite(pt.y)) continue;
-    if (pt.x < xMin) xMin = pt.x;
-    if (pt.y < yMin) yMin = pt.y;
-    if (pt.x > xMax) xMax = pt.x;
-    if (pt.y > yMax) yMax = pt.y;
-  }
-
-  if (!isFinite(xMin) || !isFinite(yMin) || !isFinite(xMax) || !isFinite(yMax)) return null;
-
-  const pad = Math.max(2, getLineWidthPx(item) * 0.8);
-  return {
-    x: xMin - pad,
-    y: yMin - pad,
-    w: Math.max(1, (xMax - xMin) + 2 * pad),
-    h: Math.max(1, (yMax - yMin) + 2 * pad)
-  };
-}
-
-function unionBox(a: BBox | null, b: BBox | null): BBox | null {
-  if (!a) return b;
-  if (!b) return a;
-  const x0 = Math.min(a.x, b.x);
-  const y0 = Math.min(a.y, b.y);
-  const x1 = Math.max(a.x + a.w, b.x + b.w);
-  const y1 = Math.max(a.y + a.h, b.y + b.h);
-  return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
-}
-
-function boxDistance(a: BBox, b: BBox): number {
-  const ax0 = a.x;
-  const ay0 = a.y;
-  const ax1 = a.x + a.w;
-  const ay1 = a.y + a.h;
-  const bx0 = b.x;
-  const by0 = b.y;
-  const bx1 = b.x + b.w;
-  const by1 = b.y + b.h;
-
-  const dx = Math.max(0, Math.max(bx0 - ax1, ax0 - bx1));
-  const dy = Math.max(0, Math.max(by0 - ay1, ay0 - by1));
-  return Math.hypot(dx, dy);
-}
-
-function getRecentAnnotationSource(): AnnotationSource | null {
-  const slide = currentSlide();
-  if (!slide || !Array.isArray(slide.items) || !slide.items.length) return null;
-
-  const recent: Array<{ item: PathItem; box: BBox }> = [];
-  for (let i = slide.items.length - 1; i >= 0; i--) {
-    const item = slide.items[i];
-    const box = getPathBBox(item);
-    if (!box) continue;
-    recent.push({ item, box });
-    if (recent.length >= 18) break;
-  }
-
-  if (!recent.length) return null;
-
-  const selected: Array<{ item: PathItem; box: BBox }> = [recent[0]];
-  let cluster: BBox | null = recent[0].box;
-
-  for (let i = 1; i < recent.length; i++) {
-    if (!cluster) break;
-    if (boxDistance(cluster, recent[i].box) > 120) break;
-    selected.push(recent[i]);
-    cluster = unionBox(cluster, recent[i].box);
-  }
-
-  if (!cluster) return null;
-  return {
-    box: cluster,
-    paths: selected.map(v => v.item)
-  };
-}
-
-function renderAnnotationSourceToCanvas(source: AnnotationSource): HTMLCanvasElement | null {
-  if (!source || !source.box || !Array.isArray(source.paths) || !source.paths.length) return null;
-
-  const pad = 16;
-  const rawW = Math.max(1, Math.ceil(source.box.w + 2 * pad));
-  const rawH = Math.max(1, Math.ceil(source.box.h + 2 * pad));
-
-  const maxSide = Math.max(rawW, rawH);
-  const scale = Math.max(1, Math.min(3, maxSide < 380 ? (380 / maxSide) : 1));
-
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(rawW * scale));
-  c.height = Math.max(1, Math.round(rawH * scale));
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return null;
-
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, rawW, rawH);
-  ctx.strokeStyle = '#000';
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.globalAlpha = 1;
-
-  const offX = source.box.x - pad;
-  const offY = source.box.y - pad;
-
-  for (let i = 0; i < source.paths.length; i++) {
-    const item = source.paths[i];
-    if (!item || !Array.isArray(item.points) || !item.points.length) continue;
-
-    const widthPx = Math.max(1.1, getLineWidthPx(item));
-    ctx.lineWidth = widthPx;
-    ctx.beginPath();
-
-    const p0 = fromRel(item.points[0]);
-    const x0 = p0.x - offX;
-    const y0 = p0.y - offY;
-
-    if (item.points.length === 1) {
-      ctx.arc(x0, y0, widthPx / 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#000';
-      ctx.fill();
-      continue;
-    }
-
-    ctx.moveTo(x0, y0);
-    for (let j = 1; j < item.points.length; j++) {
-      const p = fromRel(item.points[j]);
-      ctx.lineTo(p.x - offX, p.y - offY);
-    }
-    ctx.stroke();
-  }
-
-  return c;
 }
 
 function isElementVisible(el: Element): boolean {
@@ -288,32 +145,6 @@ function isLikelyQuizField(el: Element): boolean {
     '.quiz, .lia-quiz, .lia-question, .lia-exercise, [class*="quiz"], [class*="exercise"], [id*="quiz"]'
   );
   return !!quizLike;
-}
-
-function findNearestQuizInputForSource(source: AnnotationSource): Element | null {
-  if (!source || !source.box || !STATE.canvas) return null;
-  const candidates = getQuizInputCandidates();
-  if (!candidates.length) return null;
-
-  const r = STATE.canvas.getBoundingClientRect();
-  const ax = r.left + source.box.x + source.box.w / 2;
-  const ay = r.top + source.box.y + source.box.h / 2;
-
-  let best: Element | null = null;
-  let bestDist = Infinity;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const cr = candidates[i].getBoundingClientRect();
-    const cx = cr.left + cr.width / 2;
-    const cy = cr.top + cr.height / 2;
-    const d = Math.hypot(cx - ax, cy - ay);
-    if (d < bestDist) {
-      bestDist = d;
-      best = candidates[i];
-    }
-  }
-
-  return best;
 }
 
 function findNearestQuizInputForBox(box: BBox): Element | null {
@@ -1018,8 +849,11 @@ export function sanitizeFreezeSlides(srcSlides: unknown): Record<string, SlideDa
 function sanitizeWidget(widget: unknown): { id: string; x: number; y: number; w: number; h: number; spec?: string; language?: 'de' | 'en' } | null {
   if (!widget || typeof widget !== 'object') return null;
   const obj = widget as Record<string, unknown>;
+  // Ids are used inside attribute selectors and element ids, so restrict them to
+  // a charset that cannot break out of either. Locally generated ids are
+  // "<timestamp>-<counter>" and always pass.
   const id = String(obj.id || '').trim();
-  if (!id) return null;
+  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) return null;
   const x = Number(obj.x);
   const y = Number(obj.y);
   const w = Number(obj.w);

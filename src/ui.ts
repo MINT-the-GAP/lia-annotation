@@ -421,14 +421,16 @@ function buildEraserPanelHTML(lang: UiLang): string {
   `;
 }
 
+// The textarea is emitted empty; the draft is assigned via .value after the
+// rebuild (see updateToolbar). Interpolating it here would let recognized text
+// containing "</textarea>" break out of the element.
 function buildOcrPanelHTML(lang: UiLang): string {
-  const draft = String(STORE.ui.ocrDraft || '');
   return `
     <div class="lia-annot-row lia-annot-row--ocr-title">
       <span class="k">${t(lang, 'ocrResult')}</span>
     </div>
     <div class="lia-annot-row lia-annot-row--ocr-input">
-      <textarea class="lia-annot-ocr-input" data-act="ocr-input" rows="3" data-snapshot-admin="1">${draft}</textarea>
+      <textarea class="lia-annot-ocr-input" data-act="ocr-input" rows="3" data-snapshot-admin="1"></textarea>
     </div>
     <div class="lia-annot-row lia-annot-row--ocr-actions">
       <button class="lia-annot-primary" type="button" data-act="ocr-recognize" data-snapshot-admin="1">${t(lang, 'ocrRecognize')}</button>
@@ -755,6 +757,11 @@ export function updateToolbar(): void {
       panel.dataset.builtMode = wantedMode;
       panel.dataset.builtRo = String(ro ? 1 : 0);
       panel.dataset.builtLang = lang;
+
+      if (wantedMode === 'ocr') {
+        const freshInput = panel.querySelector('.lia-annot-ocr-input') as HTMLTextAreaElement | null;
+        if (freshInput) freshInput.value = String(STORE.ui.ocrDraft || '');
+      }
     }
 
     if (wantedMode === 'ocr') {

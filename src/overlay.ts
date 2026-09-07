@@ -130,14 +130,6 @@ function getDgsLanguage(): 'de' | 'en' {
   }
 }
 
-function escapeAttr(value: string): string {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function getDgsPromptEl(): HTMLElement | null {
   if (!STATE.shell) return null;
   return STATE.shell.querySelector('.lia-annot-dgs-prompt') as HTMLElement | null;
@@ -399,16 +391,6 @@ function analyzePenPath(item: import('./types').PathItem): PenGeom | null {
     isHorizontal,
     isVertical
   };
-}
-
-function rangeGap(a0: number, a1: number, b0: number, b1: number): number {
-  const loA = Math.min(a0, a1);
-  const hiA = Math.max(a0, a1);
-  const loB = Math.min(b0, b1);
-  const hiB = Math.max(b0, b1);
-  if (hiA < loB) return loB - hiA;
-  if (hiB < loA) return loA - hiB;
-  return 0;
 }
 
 function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
@@ -677,7 +659,9 @@ function maybePromptDgsInsert(): void {
   if (Date.now() < _dgsPromptSuppressedUntil) return;
   if ((Date.now() - _lastPromptTs) < 120) return;
 
-  const slide = ensureSlide(getSlideKey());
+  // Called for its side effect: makes sure the slide entry exists before the
+  // prompt can lead to a widget being placed on it.
+  ensureSlide(getSlideKey());
   if (!looksLikeAxisSketch()) return;
 
   _lastPromptTs = Date.now();
