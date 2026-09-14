@@ -1,0 +1,91 @@
+{
+  "note": "Diagnostic samples without lia-annotation; same fixture and pinned peer-template bundles. Counts are one 500 ms window, not a timing benchmark.",
+  "baselines": [
+    {
+      "browser": "131.0.6778.33",
+      "viewport": {
+        "width": 1100,
+        "height": 800
+      },
+      "settleMs": 1200,
+      "sampleMs": 500,
+      "errors": [],
+      "annotationLoaded": false,
+      "mode": "presentation",
+      "metrics": {
+        "mutations": 345,
+        "toolbarMutations": 0,
+        "coordinateMutations": 60,
+        "observerCallbacks": {
+          "coordinate": 45,
+          "board-mode": 105,
+          "marker": 30
+        }
+      },
+      "rafRequests": 45,
+      "rafOwners": {
+        "coordinate": 15,
+        "marker": 15,
+        "board-mode": 15
+      },
+      "mutationTargets": {
+        "attributes|BUTTON|lia-hl-btn|style": 60,
+        "attributes|HTML||style": 225,
+        "childList|LIA-COORDINATE-BOARD||": 60
+      }
+    },
+    {
+      "browser": "152.0.7977.83",
+      "viewport": {
+        "width": 1100,
+        "height": 800
+      },
+      "settleMs": 1200,
+      "sampleMs": 500,
+      "errors": [],
+      "annotationLoaded": false,
+      "mode": "presentation",
+      "metrics": {
+        "mutations": 0,
+        "toolbarMutations": 0,
+        "coordinateMutations": 0,
+        "observerCallbacks": {}
+      },
+      "rafRequests": 0,
+      "rafOwners": {},
+      "mutationTargets": {}
+    }
+  ],
+  "chromium131PairChecks": [
+    {
+      "templates": [
+        "coordinate",
+        "marker"
+      ],
+      "mutations": 315,
+      "observerCallbacks": {
+        "coordinate": 30,
+        "marker": 30
+      }
+    },
+    {
+      "templates": [
+        "coordinate",
+        "board-mode"
+      ],
+      "mutations": 94,
+      "observerCallbacks": {
+        "coordinate": 31,
+        "board-mode": 78
+      }
+    },
+    {
+      "templates": [
+        "marker",
+        "board-mode"
+      ],
+      "mutations": 0,
+      "observerCallbacks": {}
+    }
+  ]
+}

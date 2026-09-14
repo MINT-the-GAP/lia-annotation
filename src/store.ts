@@ -60,7 +60,6 @@ export const STATE: State = {
   drawing: false,
   activePath: null,
   syncRAF: 0,
-  redrawRAF: 0,
   resizeObserver: null,
   toolbar: null,
   eraserRing: null,

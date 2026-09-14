@@ -56,12 +56,12 @@ if (!IS_DUPLICATE) {
   updateToolbar();
   registerGlobalApi();
 
-  setTimeout(function () { ensureOverlay(); requestSync(); }, 0);
-  setTimeout(function () { ensureOverlay(); requestSync(); }, 80);
-  setTimeout(function () { ensureOverlay(); requestSync(); }, 250);
-  setTimeout(function () { ensureOverlay(); requestSync(); }, 700);
+  setTimeout(requestSync, 0);
+  setTimeout(requestSync, 80);
+  setTimeout(requestSync, 250);
+  setTimeout(requestSync, 700);
 
-  window.addEventListener('resize', function () { applyThemeVars(); ensureToolbar(); requestSync(); });
+  window.addEventListener('resize', function () { requestThemeSync(); requestSync(); });
   window.addEventListener('hashchange', function () {
     exitQuizPickingMode();
     clearMarkedRect();
@@ -71,17 +71,53 @@ if (!IS_DUPLICATE) {
     ensureSlide(getSlideKey());
     ensureOverlay();
     updateToolbar();
-    setTimeout(function () { ensureOverlay(); requestSync(); }, 40);
-    setTimeout(function () { ensureOverlay(); requestSync(); }, 180);
-    setTimeout(function () { ensureOverlay(); requestSync(); }, 500);
+    setTimeout(requestSync, 40);
+    setTimeout(requestSync, 180);
+    setTimeout(requestSync, 500);
   });
   window.addEventListener('scroll', function () { requestSync(); }, true);
   document.addEventListener('input', function () { requestSync(); }, true);
   document.addEventListener('change', function () { requestSync(); }, true);
 
-  const themeMo = new MutationObserver(function () { applyThemeVars(); updateToolbar(); requestRedraw(); });
+  // Theme outputs must not retrigger their own observer. Compare external
+  // inputs without discarding mutation batches: other templates may change
+  // class/style in the same delivery or immediately after our own writes.
+  const themeOutputs = new Set([
+    '--lia-annot-border', '--lia-annot-fg', '--lia-annot-accent',
+    '--lia-annot-bg', '--lia-annot-panel-bg'
+  ]);
+  function themeInputs(): string {
+    return JSON.stringify([document.documentElement, document.body].map(function (el) {
+      if (!el) return null;
+      const style = Array.from(el.style)
+        .filter(name => el !== document.documentElement || !themeOutputs.has(name))
+        .sort()
+        .map(name => [name, el.style.getPropertyValue(name), el.style.getPropertyPriority(name)]);
+      return [el.className, style];
+    }));
+  }
+  let lastThemeInputs = themeInputs();
+  let themeRAF = 0;
+  function requestThemeSync(): void {
+    if (themeRAF) return;
+    themeRAF = requestAnimationFrame(function () {
+      themeRAF = 0;
+      // Snapshot before applying so external edits during application are
+      // still detected by the next observer delivery.
+      lastThemeInputs = themeInputs();
+      applyThemeVars();
+      updateToolbar();
+      syncOverlayInteractivity();
+      requestSync();
+      requestRedraw();
+    });
+  }
+  const themeMo = new MutationObserver(function () {
+    if (themeInputs() !== lastThemeInputs) requestThemeSync();
+  });
   try {
     themeMo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
+    if (document.body) themeMo.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
   } catch (_) { }
 
   let lastOcrAvailable = isOcrAvailable();

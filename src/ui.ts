@@ -3,28 +3,47 @@
 
 import { STORE, STATE, clamp, parseRgbNoRegex, luminance, getViewportWidth, isReadOnly, effectiveMode, currentSlide } from './store';
 import { CSS } from './styles';
+import { setAttribute as setAttributeIfChanged, setStyle as setStyleIfChanged, setText as setTextIfChanged } from './dom';
+
+function setDisabledIfChanged(el: HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement, value: boolean): void {
+  if (el.disabled !== value) el.disabled = value;
+}
+
+function setInputValueIfChanged(el: HTMLInputElement | HTMLTextAreaElement | null, value: string): void {
+  if (el && document.activeElement !== el && el.value !== value) el.value = value;
+}
 
 // ----- Theme -----
+
+let themeAccentProbe: HTMLButtonElement | null = null;
+
+function isTransparentColor(color: string): boolean {
+  return !color || color === 'transparent' || /^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(color);
+}
 
 export function getThemeAccent(): string | null {
   try {
     const existing = document.querySelector('.lia-btn');
     if (existing) {
       const bg = getComputedStyle(existing).backgroundColor;
-      if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') return bg;
+      if (!isTransparentColor(bg)) return bg;
     }
-    const probe = document.createElement('button');
-    probe.className = 'lia-btn';
-    probe.type = 'button';
-    probe.textContent = 'x';
-    probe.style.position = 'absolute';
-    probe.style.left = '-9999px';
-    probe.style.top = '-9999px';
-    probe.style.visibility = 'hidden';
-    (document.body || document.documentElement).appendChild(probe);
-    const bg = getComputedStyle(probe).backgroundColor;
-    probe.remove();
-    if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') return bg;
+    // Retain the hidden probe even if its background is transparent. Repeated
+    // checks must not add/remove nodes; the probe still inherits future themes.
+    if (!themeAccentProbe || !themeAccentProbe.isConnected) {
+      themeAccentProbe = document.createElement('button');
+      themeAccentProbe.className = 'lia-btn';
+      themeAccentProbe.type = 'button';
+      themeAccentProbe.setAttribute('aria-hidden', 'true');
+      themeAccentProbe.tabIndex = -1;
+      themeAccentProbe.style.position = 'absolute';
+      themeAccentProbe.style.left = '-9999px';
+      themeAccentProbe.style.top = '-9999px';
+      themeAccentProbe.style.visibility = 'hidden';
+      (document.body || document.documentElement).appendChild(themeAccentProbe);
+    }
+    const bg = getComputedStyle(themeAccentProbe).backgroundColor;
+    if (!isTransparentColor(bg)) return bg;
   } catch (_) { }
   return null;
 }
@@ -32,23 +51,23 @@ export function getThemeAccent(): string | null {
 export function applyThemeVars(): void {
   try {
     const root = document.documentElement;
-    const bg = getComputedStyle(document.body || document.documentElement).backgroundColor
-      || getComputedStyle(document.documentElement).backgroundColor;
-    const rgb = parseRgbNoRegex(bg);
+    let bg = getComputedStyle(document.body || root).backgroundColor;
+    if (isTransparentColor(bg)) bg = getComputedStyle(root).backgroundColor;
+    const rgb = isTransparentColor(bg) ? null : parseRgbNoRegex(bg);
     const dark = rgb ? (luminance(rgb) < 0.5) : false;
 
-    root.style.setProperty('--lia-annot-border', dark ? '#fff' : '#000');
-    root.style.setProperty('--lia-annot-fg', dark ? '#fff' : '#000');
+    setStyleIfChanged(root, '--lia-annot-border', dark ? '#fff' : '#000');
+    setStyleIfChanged(root, '--lia-annot-fg', dark ? '#fff' : '#000');
 
     const accent = getThemeAccent();
-    if (accent) root.style.setProperty('--lia-annot-accent', accent);
+    if (accent) setStyleIfChanged(root, '--lia-annot-accent', accent);
 
     if (dark) {
-      root.style.setProperty('--lia-annot-bg', 'rgba(28,28,28,0.96)');
-      root.style.setProperty('--lia-annot-panel-bg', 'rgba(34,34,34,0.97)');
+      setStyleIfChanged(root, '--lia-annot-bg', 'rgba(28,28,28,0.96)');
+      setStyleIfChanged(root, '--lia-annot-panel-bg', 'rgba(34,34,34,0.97)');
     } else {
-      root.style.setProperty('--lia-annot-bg', 'rgba(255,255,255,0.96)');
-      root.style.setProperty('--lia-annot-panel-bg', 'rgba(255,255,255,0.97)');
+      setStyleIfChanged(root, '--lia-annot-bg', 'rgba(255,255,255,0.96)');
+      setStyleIfChanged(root, '--lia-annot-panel-bg', 'rgba(255,255,255,0.97)');
     }
   } catch (_) { }
 }
@@ -141,7 +160,7 @@ function getLiveEraserRingSize(): number {
 
 export function hideEraserRing(): void {
   if (!STATE.eraserRing) return;
-  STATE.eraserRing.dataset.on = '0';
+  setAttributeIfChanged(STATE.eraserRing, 'data-on', '0');
 }
 
 export function updateEraserRing(x: number, y: number): void {
@@ -155,11 +174,11 @@ export function updateEraserRing(x: number, y: number): void {
     return;
   }
   const size = getLiveEraserRingSize();
-  STATE.eraserRing.style.width = size + 'px';
-  STATE.eraserRing.style.height = size + 'px';
-  STATE.eraserRing.style.left = clamp(x, 0, STATE.cssW) + 'px';
-  STATE.eraserRing.style.top = clamp(y, 0, STATE.cssH) + 'px';
-  STATE.eraserRing.dataset.on = '1';
+  setStyleIfChanged(STATE.eraserRing, 'width', size + 'px');
+  setStyleIfChanged(STATE.eraserRing, 'height', size + 'px');
+  setStyleIfChanged(STATE.eraserRing, 'left', clamp(x, 0, STATE.cssW) + 'px');
+  setStyleIfChanged(STATE.eraserRing, 'top', clamp(y, 0, STATE.cssH) + 'px');
+  setAttributeIfChanged(STATE.eraserRing, 'data-on', '1');
 }
 
 export function refreshEraserRing(): void {
@@ -482,10 +501,19 @@ function ensureKatexLoaded(): Promise<unknown> {
   return _katexLoadPromise;
 }
 
+// Cache the requested source per preview node, including pending asynchronous
+// renders. A later edit invalidates older promises before they can alter the DOM.
+const previewRequests = new WeakMap<HTMLElement, { source: string }>();
+
 function renderKatexInto(target: HTMLElement, latex: string): void {
   const src = String(latex || '').trim();
-  target.innerHTML = '';
-  if (!src) return;
+  if (previewRequests.get(target)?.source === src) return;
+  const request = { source: src };
+  previewRequests.set(target, request);
+  if (!src) {
+    setTextIfChanged(target, '');
+    return;
+  }
 
   const own = window as Window & { katex?: unknown; KaTeX?: unknown };
   const root = window.top as Window & { katex?: unknown; KaTeX?: unknown } | null;
@@ -499,19 +527,22 @@ function renderKatexInto(target: HTMLElement, latex: string): void {
     }
   } catch (_) { }
 
-  target.textContent = src;
+  setTextIfChanged(target, src);
   ensureKatexLoaded().then(function (loaded) {
-    if (!target.isConnected) return;
-    target.innerHTML = '';
+    if (!target.isConnected || previewRequests.get(target) !== request) return;
     try {
       (loaded as { render: (s: string, el: HTMLElement, opts: Record<string, unknown>) => void })
         .render(src, target, { throwOnError: false, displayMode: false });
     } catch (_) {
-      target.textContent = src;
+      previewRequests.delete(target);
+      setTextIfChanged(target, src);
     }
   }).catch(function () {
-    if (!target.isConnected) return;
-    target.textContent = src;
+    if (!target.isConnected || previewRequests.get(target) !== request) return;
+    // A later template may supply KaTeX after loading failed. Allow the same
+    // source to be tried again while retaining idempotent plain-text fallback.
+    previewRequests.delete(target);
+    setTextIfChanged(target, src);
   });
 }
 
@@ -521,12 +552,7 @@ function updateOcrPanelPreview(panel: HTMLElement | null): void {
   const math = panel.querySelector('[data-k="ocrPreview"]') as HTMLElement | null;
   if (!preview || !math) return;
   const value = String(STORE.ui.ocrDraft || '').trim();
-  if (!value) {
-    preview.dataset.on = '0';
-    math.textContent = '';
-    return;
-  }
-  preview.dataset.on = '1';
+  setAttributeIfChanged(preview, 'data-on', value ? '1' : '0');
   renderKatexInto(math, value);
 }
 
@@ -536,6 +562,8 @@ function updateOcrPanelPreview(panel: HTMLElement | null): void {
 // updateToolbar calls ensureOverlay indirectly via ensureToolbar only for the element.
 // The actual circular calls (requestRedraw, syncOverlayInteractivity, etc.) are
 // passed in as callbacks from boot.ts.
+const eyeStates = new WeakMap<HTMLElement, boolean>();
+
 let _callbacks: {
   requestRedraw: () => void;
   requestSync: () => void;
@@ -576,6 +604,9 @@ export function ensureToolbar(): HTMLElement {
     <div class="lia-annot-panel" data-open="0"></div>
   `;
 
+  const eyeButton = bar.querySelector('[data-act="toggle"]') as HTMLElement;
+  eyeStates.set(eyeButton, true);
+
   (document.body || document.documentElement).appendChild(bar);
 
   bar.addEventListener('click', function (e) {
@@ -589,7 +620,6 @@ export function ensureToolbar(): HTMLElement {
       if (isReadOnly()) return;
       STORE.ui.color = String(colorBtn.getAttribute('data-color') || '#ff0000');
       updateToolbar();
-      _callbacks?.requestRedraw();
       return;
     }
 
@@ -713,7 +743,7 @@ export function ensureToolbar(): HTMLElement {
     }
     if (act === 'ocr-input') {
       STORE.ui.ocrDraft = String((t as HTMLTextAreaElement).value || '');
-      updateOcrPanelPreview(bar.querySelector('.lia-annot-panel') as HTMLElement | null);
+      updateToolbar();
       return;
     }
   }, true);
@@ -735,15 +765,14 @@ export function updateToolbar(): void {
       ? 'eraser'
       : (STORE.ui.panelMode === 'ocr' ? 'ocr' : 'pen');
     const builtMode = String(panel.dataset.builtMode || '');
-    const builtRo = String(panel.dataset.builtRo || '');
     const builtLang = String(panel.dataset.builtLang || '');
 
-    panel.dataset.open = open;
+    setAttributeIfChanged(panel, 'data-open', open);
 
+    // Read-only changes only affect controls and the note; keep their nodes.
     const needsRebuild =
       !panel.firstElementChild ||
       builtMode !== wantedMode ||
-      builtRo !== String(ro ? 1 : 0) ||
       builtLang !== lang;
 
     if (needsRebuild) {
@@ -754,72 +783,59 @@ export function updateToolbar(): void {
       } else {
         panel.innerHTML = buildPenPanelHTML(lang);
       }
-      panel.dataset.builtMode = wantedMode;
-      panel.dataset.builtRo = String(ro ? 1 : 0);
-      panel.dataset.builtLang = lang;
-
-      if (wantedMode === 'ocr') {
-        const freshInput = panel.querySelector('.lia-annot-ocr-input') as HTMLTextAreaElement | null;
-        if (freshInput) freshInput.value = String(STORE.ui.ocrDraft || '');
-      }
+      setAttributeIfChanged(panel, 'data-built-mode', wantedMode);
+      setAttributeIfChanged(panel, 'data-built-lang', lang);
     }
 
-    if (wantedMode === 'ocr') {
-      updateOcrPanelPreview(panel);
-    }
+    if (wantedMode === 'ocr') updateOcrPanelPreview(panel);
   }
 
   const note = panel ? panel.querySelector('[data-k="note"]') : null;
-  if (note) {
-    note.textContent = ro
-      ? t(lang, 'readOnlyNote')
-      : '';
-  }
+  if (note) setTextIfChanged(note, ro ? t(lang, 'readOnlyNote') : '');
 
   const btns = bar.querySelectorAll('.lia-annot-btn[data-act]');
   const ocrAvailable = !!_callbacks?.isOcrAvailable && _callbacks.isOcrAvailable();
   if (!ocrAvailable && STORE.ui.mode === 'rect') {
     STORE.ui.mode = 'cursor';
+    _callbacks?.syncOverlayInteractivity();
   }
   btns.forEach(function (btn) {
     const el = btn as HTMLButtonElement;
     const act = String(el.getAttribute('data-act') || '');
-    el.dataset.active = '0';
-    el.dataset.busy = '0';
+    const active = act === 'toggle'
+      ? !!STORE.ui.visible
+      : act === STORE.ui.mode || (act === 'ocr-transfer' && STORE.ui.mode === 'rect');
+    const busy = act === 'ocr-transfer' && !!STORE.ui.ocrBusy;
+    setAttributeIfChanged(el, 'data-active', active ? '1' : '0');
+    setAttributeIfChanged(el, 'data-busy', busy ? '1' : '0');
 
-    if (act === 'cursor' && STORE.ui.mode === 'cursor') el.dataset.active = '1';
-    if (act === 'pen' && STORE.ui.mode === 'pen') el.dataset.active = '1';
-    if (act === 'eraser' && STORE.ui.mode === 'eraser') el.dataset.active = '1';
-    if (act === 'ocr-transfer' && STORE.ui.mode === 'rect') el.dataset.active = '1';
-    if (act === 'toggle') {
-      el.dataset.active = STORE.ui.visible ? '1' : '0';
+    if (act === 'toggle' && eyeStates.get(el) !== !!STORE.ui.visible) {
       el.innerHTML = iconEye(!!STORE.ui.visible);
+      eyeStates.set(el, !!STORE.ui.visible);
     }
 
-    // Keep aria-pressed in sync with the active state for mode and toggle buttons
+    // Keep aria-pressed in sync with the active state for mode and toggle buttons.
     if (act === 'cursor' || act === 'pen' || act === 'eraser' || act === 'toggle') {
-      el.setAttribute('aria-pressed', el.dataset.active === '1' ? 'true' : 'false');
+      setAttributeIfChanged(el, 'aria-pressed', active ? 'true' : 'false');
     }
 
+    let disabled = false;
     if (act === 'undo') {
-      el.disabled = ro || slide.items.length === 0;
+      disabled = ro || slide.items.length === 0;
     } else if (act === 'redo') {
-      el.disabled = ro || slide.redo.length === 0;
+      disabled = ro || slide.redo.length === 0;
     } else if (act === 'dgs-place') {
-      el.disabled = ro || !STORE.ui.visible;
+      disabled = ro || !STORE.ui.visible;
     } else if (act === 'ocr-transfer') {
-      const disableOcr = ro || !STORE.ui.visible || STORE.ui.ocrBusy || !ocrAvailable;
-      el.disabled = disableOcr;
-      el.hidden = !ocrAvailable;
-      el.style.display = ocrAvailable ? '' : 'none';
-      el.dataset.busy = STORE.ui.ocrBusy ? '1' : '0';
-      el.title = t(lang, 'ocrTransfer');
-      el.setAttribute('aria-label', t(lang, 'ocrTransfer'));
+      disabled = ro || !STORE.ui.visible || STORE.ui.ocrBusy || !ocrAvailable;
+      if (el.hidden !== !ocrAvailable) el.hidden = !ocrAvailable;
+      setStyleIfChanged(el, 'display', ocrAvailable ? '' : 'none');
+      setAttributeIfChanged(el, 'title', t(lang, 'ocrTransfer'));
+      setAttributeIfChanged(el, 'aria-label', t(lang, 'ocrTransfer'));
     } else if (act === 'pen' || act === 'eraser') {
-      el.disabled = ro;
-    } else {
-      el.disabled = false;
+      disabled = ro;
     }
+    setDisabledIfChanged(el, disabled);
   });
 
   if (panel) {
@@ -827,12 +843,12 @@ export function updateToolbar(): void {
     colorBtns.forEach(function (btn) {
       const el = btn as HTMLButtonElement;
       const c = String(el.getAttribute('data-color') || '');
-      el.dataset.active = (c === String(STORE.ui.color || '')) ? '1' : '0';
-      el.disabled = ro;
+      setAttributeIfChanged(el, 'data-active', c === String(STORE.ui.color || '') ? '1' : '0');
+      setDisabledIfChanged(el, ro);
     });
 
     const clearBtn = panel.querySelector('.lia-annot-danger[data-act="clear"]') as HTMLButtonElement | null;
-    if (clearBtn) clearBtn.disabled = ro || slide.items.length === 0;
+    if (clearBtn) setDisabledIfChanged(clearBtn, ro || slide.items.length === 0);
 
     const widthSlider = panel.querySelector('input[data-act="width"]') as HTMLInputElement | null;
     const alphaSlider = panel.querySelector('input[data-act="alpha"]') as HTMLInputElement | null;
@@ -845,23 +861,23 @@ export function updateToolbar(): void {
     const aTxt = panel.querySelector('[data-k="alpha"]');
     const eTxt = panel.querySelector('[data-k="eraserWidth"]');
 
-    if (widthSlider && document.activeElement !== widthSlider) widthSlider.value = String(STORE.ui.width);
-    if (alphaSlider && document.activeElement !== alphaSlider) alphaSlider.value = String(STORE.ui.alpha);
-    if (eraserSlider && document.activeElement !== eraserSlider) eraserSlider.value = String(STORE.ui.eraserWidth);
-    if (ocrInput && document.activeElement !== ocrInput) ocrInput.value = String(STORE.ui.ocrDraft || '');
+    setInputValueIfChanged(widthSlider, String(STORE.ui.width));
+    setInputValueIfChanged(alphaSlider, String(STORE.ui.alpha));
+    setInputValueIfChanged(eraserSlider, String(STORE.ui.eraserWidth));
+    setInputValueIfChanged(ocrInput, String(STORE.ui.ocrDraft || ''));
 
-    if (wTxt) wTxt.textContent = String(STORE.ui.width);
-    if (aTxt) aTxt.textContent = Math.round(Number(STORE.ui.alpha || 1) * 100) + '%';
-    if (eTxt) eTxt.textContent = String(STORE.ui.eraserWidth);
+    if (wTxt) setTextIfChanged(wTxt, String(STORE.ui.width));
+    if (aTxt) setTextIfChanged(aTxt, Math.round(Number(STORE.ui.alpha || 1) * 100) + '%');
+    if (eTxt) setTextIfChanged(eTxt, String(STORE.ui.eraserWidth));
 
-    if (ocrInput) ocrInput.disabled = ro || STORE.ui.ocrBusy;
-    if (ocrRecognizeBtn) ocrRecognizeBtn.disabled = ro || STORE.ui.ocrBusy || !ocrAvailable;
-    if (ocrSubmitBtn) ocrSubmitBtn.disabled = ro || STORE.ui.ocrBusy || !String(STORE.ui.ocrDraft || '').trim();
+    if (ocrInput) setDisabledIfChanged(ocrInput, ro || STORE.ui.ocrBusy);
+    if (ocrRecognizeBtn) setDisabledIfChanged(ocrRecognizeBtn, ro || STORE.ui.ocrBusy || !ocrAvailable);
+    if (ocrSubmitBtn) setDisabledIfChanged(ocrSubmitBtn, ro || STORE.ui.ocrBusy || !String(STORE.ui.ocrDraft || '').trim());
 
     const ocrHint = panel.querySelector('[data-k="ocrHint"]') as HTMLElement | null;
     if (ocrHint) {
-      ocrHint.textContent = STORE.ui.ocrFailed ? t(lang, 'ocrFailed') : t(lang, 'ocrHint');
-      ocrHint.style.color = STORE.ui.ocrFailed ? 'var(--lia-annot-danger, #c0392b)' : '';
+      setTextIfChanged(ocrHint, STORE.ui.ocrFailed ? t(lang, 'ocrFailed') : t(lang, 'ocrHint'));
+      setStyleIfChanged(ocrHint, 'color', STORE.ui.ocrFailed ? 'var(--lia-annot-danger, #c0392b)' : '');
     }
   }
 
@@ -894,7 +910,7 @@ export function syncToolbarPosition(): void {
   left = Math.max(8, left);
   left = Math.min(left, Math.max(8, viewportW - barW - 8));
 
-  bar.style.left = left + 'px';
+  setStyleIfChanged(bar, 'left', left + 'px');
 }
 
 // getVisibleMainHost is in overlay.ts but toolbar needs it.

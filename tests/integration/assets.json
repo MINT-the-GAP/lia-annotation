@@ -1,0 +1,23 @@
+[
+  {
+    "name": "coordinate",
+    "file": "coordinate.js",
+    "revision": "8dcdbb50d410cea6b107388d4ef5f7e4dedf63cb",
+    "url": "https://raw.githubusercontent.com/MINT-the-GAP/lia-coordinate/8dcdbb50d410cea6b107388d4ef5f7e4dedf63cb/dist/index.js",
+    "sha256": "b297d7dba0a163e6810cc39881d3ecc3a9226f84441e066854b7647cb490a5a1"
+  },
+  {
+    "name": "marker",
+    "file": "marker.js",
+    "revision": "ed3da1236c5582c4083f2951fdaa4f83dfc97484",
+    "url": "https://raw.githubusercontent.com/MINT-the-GAP/lia-marker/ed3da1236c5582c4083f2951fdaa4f83dfc97484/dist/index.js",
+    "sha256": "d1560c0c7476385a1ae8aee0a592475305e251cea555161118915f8e9fe30262"
+  },
+  {
+    "name": "board-mode",
+    "file": "board-mode.js",
+    "revision": "97ea8f235a2e4d2009f923b6a6f13f241084eb6c",
+    "url": "https://raw.githubusercontent.com/MINT-the-GAP/lia-board-mode/97ea8f235a2e4d2009f923b6a6f13f241084eb6c/dist/index.js",
+    "sha256": "4a08aa72a3611dc6a995df6a177bdb37d1a1f85b40ce999ff1888b0574539b61"
+  }
+]

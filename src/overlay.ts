@@ -2,8 +2,9 @@
 // resize observation, canvas event binding, drawing, and sync scheduling.
 
 import { STORE, STATE, clamp, toRel, fromRel, getSlideKey, ensureSlide, isReadOnly, effectiveMode, getLineWidthPx, getViewportWidth } from './store';
-import { updateToolbar, hideEraserRing, updateEraserRing, refreshEraserRing, tUi } from './ui';
-import type { SlideData } from './types';
+import { updateToolbar, syncToolbarPosition, hideEraserRing, updateEraserRing, refreshEraserRing, tUi } from './ui';
+import type { SlideData, PathItem } from './types';
+import { setStyle, setAttribute, setText } from './dom';
 
 type MarkRect = { x0: number; y0: number; x1: number; y1: number };
 type DgsWidget = { id: string; x: number; y: number; w: number; h: number; spec?: string; language?: 'de' | 'en' };
@@ -43,15 +44,15 @@ function setRectProgress01(v: number): void {
   const txt = STATE.shell.querySelector('.lia-annot-rect-progtxt') as HTMLElement | null;
   if (!wrap || !fill || !txt) return;
   const p = Math.max(0, Math.min(1, Number(v)));
-  fill.style.width = Math.round(p * 100) + '%';
-  txt.textContent = Math.round(p * 100) + '%';
+  setStyle(fill, 'width', Math.round(p * 100) + '%');
+  setText(txt, Math.round(p * 100) + '%');
 }
 
 function showRectProgress(): void {
   if (!STATE.shell) return;
   const wrap = STATE.shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
   if (!wrap) return;
-  wrap.dataset.on = '1';
+  setAttribute(wrap, 'data-on', '1');
   setRectProgress01(0);
   syncRectButtons();
 }
@@ -60,7 +61,7 @@ function hideRectProgress(): void {
   if (!STATE.shell) return;
   const wrap = STATE.shell.querySelector('.lia-annot-rect-progress') as HTMLElement | null;
   if (!wrap) return;
-  wrap.dataset.on = '0';
+  setAttribute(wrap, 'data-on', '0');
   setRectProgress01(0);
 }
 
@@ -166,17 +167,17 @@ function setDgsPromptVisible(v: boolean): void {
       const promptH = 110;
       const left = clamp(Math.round(xMax + 14), 12, Math.max(12, STATE.cssW - promptW - 12));
       const top = clamp(Math.round(yMin - 8), 12, Math.max(12, STATE.cssH - promptH - 12));
-      el.style.left = left + 'px';
-      el.style.top = top + 'px';
-      el.style.bottom = 'auto';
+      setStyle(el, 'left', left + 'px');
+      setStyle(el, 'top', top + 'px');
+      setStyle(el, 'bottom', 'auto');
     } else {
-      el.style.left = '14px';
-      el.style.bottom = '14px';
-      el.style.top = 'auto';
+      setStyle(el, 'left', '14px');
+      setStyle(el, 'bottom', '14px');
+      setStyle(el, 'top', 'auto');
     }
   }
 
-  el.dataset.on = _dgsPromptOpen ? '1' : '0';
+  setAttribute(el, 'data-on', _dgsPromptOpen ? '1' : '0');
 }
 
 function getDgsCrosshairEl(): HTMLElement | null {
@@ -187,7 +188,7 @@ function getDgsCrosshairEl(): HTMLElement | null {
 function setDgsCrosshairVisible(v: boolean): void {
   const el = getDgsCrosshairEl();
   if (!el) return;
-  el.dataset.on = v ? '1' : '0';
+  setAttribute(el, 'data-on', v ? '1' : '0');
 }
 
 function setDgsPlacementMode(v: boolean): void {
@@ -209,8 +210,8 @@ function updateDgsCrosshair(x: number, y: number): void {
   const el = getDgsCrosshairEl();
   if (!el || !STATE.shell || !_dgsPlacementMode) return;
   if (!isFinite(x) || !isFinite(y)) return;
-  el.style.left = clamp(x, 0, Math.max(0, STATE.cssW)) + 'px';
-  el.style.top = clamp(y, 0, Math.max(0, STATE.cssH)) + 'px';
+  setStyle(el, 'left', clamp(x, 0, Math.max(0, STATE.cssW)) + 'px');
+  setStyle(el, 'top', clamp(y, 0, Math.max(0, STATE.cssH)) + 'px');
   setDgsCrosshairVisible(true);
 }
 
@@ -762,16 +763,16 @@ function initWidgetBoard(el: HTMLElement): void {
   if (!specNode) {
     specNode = document.createElement('span');
     specNode.className = 'lia-annot-dgs-spec';
-    specNode.style.display = 'none';
+    setStyle(specNode, 'display', 'none');
     el.insertBefore(specNode, el.firstChild);
   }
   specNode.id = 'dgs-ui-' + widgetId;
-  specNode.dataset.spec = spec;
-  specNode.dataset.language = language;
+  setAttribute(specNode, 'data-spec', spec);
+  setAttribute(specNode, 'data-language', language);
 
   if (!jxg || !coord) {
     renderFallbackAxes(boardHost);
-    boardHost.dataset.init = '1';
+    setAttribute(boardHost, 'data-init', '1');
     return;
   }
 
@@ -817,12 +818,22 @@ function initWidgetBoard(el: HTMLElement): void {
     renderFallbackAxes(boardHost);
   }
 
-  boardHost.dataset.init = '1';
+  setAttribute(boardHost, 'data-init', '1');
 }
+
+let widgetsHost: HTMLElement | null = null;
+let widgetsKey = '';
+let widgetElements: HTMLElement[] = [];
+const widgetPositions = new WeakMap<HTMLElement, number>();
 
 function syncDgsWidgetsLayer(): void {
   if (!STATE.host) return;
   const host = STATE.host as HTMLElement;
+  const widgets = currentWidgets().slice().sort(function (a, b) { return a.y - b.y; });
+  const key = JSON.stringify([STATE.slideKey, widgets]);
+  if (widgetsHost === host && widgetsKey === key &&
+      widgetElements.every(el => el.parentElement === host)) return;
+  const elements: HTMLElement[] = [];
 
   function isShellNode(node: Element | null): boolean {
     return !!(STATE.shell && node && node === STATE.shell);
@@ -844,12 +855,13 @@ function syncDgsWidgetsLayer(): void {
     const children = flowChildren();
     let best: HTMLElement | null = null;
     let bestTop = -Infinity;
+    const hostTop = host.getBoundingClientRect().top;
     for (let i = 0; i < children.length; i++) {
       const el = children[i];
       const r = el.getBoundingClientRect();
       if (r.width < 24 || r.height < 12) continue;
-      const top = r.top - host.getBoundingClientRect().top;
-      const bottom = r.bottom - host.getBoundingClientRect().top;
+      const top = r.top - hostTop;
+      const bottom = r.bottom - hostTop;
       if (bottom <= y + 2 && top >= bestTop) {
         best = el;
         bestTop = top;
@@ -858,7 +870,6 @@ function syncDgsWidgetsLayer(): void {
     return best;
   }
 
-  const widgets = currentWidgets().slice().sort(function (a, b) { return a.y - b.y; });
   const keep: Record<string, boolean> = {};
 
   for (let i = 0; i < widgets.length; i++) {
@@ -872,36 +883,44 @@ function syncDgsWidgetsLayer(): void {
     if (!el) {
       el = document.createElement('div');
       el.className = 'lia-annot-dgs-widget';
-      el.dataset.id = w.id;
+      setAttribute(el, 'data-id', w.id);
       el.innerHTML = '<span class="lia-annot-dgs-spec" style="display:none;"></span><div class="lia-annot-dgs-board"></div>';
     }
 
-    el.style.position = 'static';
-    el.style.left = '';
-    el.style.top = '';
-    el.style.width = '100%';
-    el.style.height = 'auto';
-    el.style.margin = '18px 0';
-    el.style.display = 'block';
-    el.style.clear = 'both';
+    setStyle(el, 'position', 'static');
+    setStyle(el, 'left', '');
+    setStyle(el, 'top', '');
+    setStyle(el, 'width', '100%');
+    setStyle(el, 'height', 'auto');
+    setStyle(el, 'margin', '18px 0');
+    setStyle(el, 'display', 'block');
+    setStyle(el, 'clear', 'both');
 
-    el.dataset.spec = resolvedSpec;
-    el.dataset.language = resolvedLanguage;
+    setAttribute(el, 'data-spec', resolvedSpec);
+    setAttribute(el, 'data-language', resolvedLanguage);
     const specNode = el.querySelector('.lia-annot-dgs-spec') as HTMLElement | null;
     if (specNode) {
-      specNode.id = 'dgs-ui-' + w.id;
-      specNode.dataset.spec = resolvedSpec;
-      specNode.dataset.language = resolvedLanguage;
+      setAttribute(specNode, 'id', 'dgs-ui-' + w.id);
+      setAttribute(specNode, 'data-spec', resolvedSpec);
+      setAttribute(specNode, 'data-language', resolvedLanguage);
     }
 
-    const anchor = findInsertAfter(w.y);
-    if (anchor) {
-      if (anchor.nextSibling !== el) anchor.parentNode!.insertBefore(el, anchor.nextSibling);
-    } else if (STATE.shell && el.parentNode !== host) {
-      host.insertBefore(el, STATE.shell);
-    } else if (el.parentNode !== host) {
-      host.appendChild(el);
+    if (el.parentNode !== host || widgetPositions.get(el) !== w.y) {
+      const anchor = findInsertAfter(w.y);
+      if (anchor) {
+        let before = anchor.nextSibling;
+        while (before instanceof HTMLElement && isWidgetNode(before) &&
+               before !== el && (widgetPositions.get(before) ?? Infinity) <= w.y) {
+          before = before.nextSibling;
+        }
+        if (before !== el) host.insertBefore(el, before);
+      } else {
+        const before = STATE.shell ? STATE.shell.nextSibling : host.firstChild;
+        if (before !== el) host.insertBefore(el, before);
+      }
+      widgetPositions.set(el, w.y);
     }
+    elements.push(el);
 
     initWidgetBoard(el);
   }
@@ -912,6 +931,9 @@ function syncDgsWidgetsLayer(): void {
     if (keep[id]) continue;
     children[i].remove();
   }
+  widgetsHost = host;
+  widgetsKey = JSON.stringify([STATE.slideKey, widgets]);
+  widgetElements = elements;
 }
 
 function placeDgsWidgetAt(x: number, y: number): void {
@@ -921,7 +943,7 @@ function placeDgsWidgetAt(x: number, y: number): void {
   const id = String(Date.now()) + '-' + String(_nextDgsWidgetId++);
   widgets.push({ id, x: left, y: top, w: DGS_WIDGET_W, h: DGS_WIDGET_H, spec: 'lia-annot-dgs-board-' + id, language: getDgsLanguage() });
   syncDgsWidgetsLayer();
-  requestRedraw();
+  requestSync();
 }
 
 function isPickableInput(el: Element | null): boolean {
@@ -937,8 +959,10 @@ let _pickingKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
 export function exitQuizPickingMode(): void {
   _choosingQuiz = false;
-  if (STATE.canvas) STATE.canvas.style.pointerEvents = '';
-  document.documentElement.classList.remove('lia-annot-quiz-picking');
+  if (document.documentElement.classList.contains('lia-annot-quiz-picking')) {
+    document.documentElement.classList.remove('lia-annot-quiz-picking');
+  }
+  syncOverlayInteractivity();
   if (_pickingClickHandler) { document.removeEventListener('click', _pickingClickHandler, true); _pickingClickHandler = null; }
   if (_pickingKeyHandler) { document.removeEventListener('keydown', _pickingKeyHandler, true); _pickingKeyHandler = null; }
   syncRectButtons();
@@ -947,7 +971,7 @@ export function exitQuizPickingMode(): void {
 function enterQuizPickingMode(): void {
   if (_choosingQuiz) return;
   _choosingQuiz = true;
-  if (STATE.canvas) STATE.canvas.style.pointerEvents = 'none';
+  if (STATE.canvas) setStyle(STATE.canvas, 'pointer-events', 'none');
   document.documentElement.classList.add('lia-annot-quiz-picking');
   syncRectButtons();
 
@@ -991,16 +1015,16 @@ function syncRectButtons(): void {
   const rect = _markedRect;
   const canShow = !!rect && STORE.ui.visible && !isReadOnly() && effectiveMode() === 'rect';
   if (!canShow) {
-    submitBtn.style.display = 'none';
-    clearBtn.style.display = 'none';
-    prog.style.display = 'none';
-    if (chooseBtn) chooseBtn.style.display = 'none';
+    setStyle(submitBtn, 'display', 'none');
+    setStyle(clearBtn, 'display', 'none');
+    setStyle(prog, 'display', 'none');
+    if (chooseBtn) setStyle(chooseBtn, 'display', 'none');
     return;
   }
 
-  submitBtn.style.display = 'block';
-  clearBtn.style.display = 'block';
-  prog.style.display = '';
+  setStyle(submitBtn, 'display', 'block');
+  setStyle(clearBtn, 'display', 'block');
+  setStyle(prog, 'display', '');
 
   const x = Math.min(rect!.x0, rect!.x1);
   const y = Math.min(rect!.y0, rect!.y1);
@@ -1015,38 +1039,38 @@ function syncRectButtons(): void {
 
   const submitLeft = clamp(x + w - btnW, pad, Math.max(pad, STATE.cssW - btnW - pad));
   const submitTop = clamp(y + h + gap, pad, Math.max(pad, STATE.cssH - btnH - pad));
-  submitBtn.style.left = submitLeft + 'px';
-  submitBtn.style.top = submitTop + 'px';
+  setStyle(submitBtn, 'left', submitLeft + 'px');
+  setStyle(submitBtn, 'top', submitTop + 'px');
 
   const progH = Math.max(24, prog.offsetHeight || 26);
-  prog.style.width = btnW + 'px';
-  prog.style.left = submitLeft + 'px';
-  prog.style.top = clamp(submitTop - progH - 6, pad, Math.max(pad, STATE.cssH - progH - pad)) + 'px';
+  setStyle(prog, 'width', btnW + 'px');
+  setStyle(prog, 'left', submitLeft + 'px');
+  setStyle(prog, 'top', clamp(submitTop - progH - 6, pad, Math.max(pad, STATE.cssH - progH - pad)) + 'px');
 
   const clearLeft = clamp(x + w - cls * 0.5, pad, Math.max(pad, STATE.cssW - cls - pad));
   const clearTop = clamp(y - cls * 0.5, pad, Math.max(pad, STATE.cssH - cls - pad));
-  clearBtn.style.left = clearLeft + 'px';
-  clearBtn.style.top = clearTop + 'px';
+  setStyle(clearBtn, 'left', clearLeft + 'px');
+  setStyle(clearBtn, 'top', clearTop + 'px');
 
   if (chooseBtn) {
     const chooseBtnH = Math.max(28, chooseBtn.offsetHeight || 32);
-    chooseBtn.style.display = 'block';
-    chooseBtn.style.width = btnW + 'px';
-    chooseBtn.style.left = submitLeft + 'px';
-    chooseBtn.style.top = clamp(submitTop + btnH + 4, pad, Math.max(pad, STATE.cssH - chooseBtnH - pad)) + 'px';
+    setStyle(chooseBtn, 'display', 'block');
+    setStyle(chooseBtn, 'width', btnW + 'px');
+    setStyle(chooseBtn, 'left', submitLeft + 'px');
+    setStyle(chooseBtn, 'top', clamp(submitTop + btnH + 4, pad, Math.max(pad, STATE.cssH - chooseBtnH - pad)) + 'px');
     // Reflect current state on label
     if (_choosingQuiz) {
-      chooseBtn.textContent = '✕ ' + tUi('rectChooseCancel');
-      chooseBtn.dataset.state = 'picking';
+      setText(chooseBtn, '✕ ' + tUi('rectChooseCancel'));
+      setAttribute(chooseBtn, 'data-state', 'picking');
     } else if (_pinnedQuizTarget) {
       const label = (_pinnedQuizTarget as HTMLInputElement).placeholder
         || (_pinnedQuizTarget as HTMLInputElement).name
         || tUi('rectChosenFallback');
-      chooseBtn.textContent = '✓ ' + label;
-      chooseBtn.dataset.state = 'chosen';
+      setText(chooseBtn, '✓ ' + label);
+      setAttribute(chooseBtn, 'data-state', 'chosen');
     } else {
-      chooseBtn.textContent = tUi('rectChooseQuiz');
-      chooseBtn.dataset.state = '';
+      setText(chooseBtn, tUi('rectChooseQuiz'));
+      setAttribute(chooseBtn, 'data-state', '');
     }
   }
 }
@@ -1144,16 +1168,17 @@ export function bindCanvasEvents(): void {
     return p;
   }
 
-  function addPoint(path: import('./types').PathItem, x: number, y: number): void {
-    if (!path || !Array.isArray(path.points)) return;
+  function addPoint(path: PathItem, x: number, y: number): boolean {
+    if (!path || !Array.isArray(path.points)) return false;
     const rel = toRel(x, y);
     const prev = path.points.length ? path.points[path.points.length - 1] : null;
     if (prev) {
       const dx = (rel.x - prev.x) * STATE.cssW;
       const dy = (rel.y - prev.y) * STATE.cssH;
-      if (Math.hypot(dx, dy) < 0.8) return;
+      if (Math.hypot(dx, dy) < 0.8) return false;
     }
     path.points.push(rel);
+    return true;
   }
 
   function finishStroke(evt: PointerEvent, keepMouseRing: boolean): void {
@@ -1165,7 +1190,6 @@ export function bindCanvasEvents(): void {
       try { STATE.canvas!.releasePointerCapture(evt.pointerId); } catch (_) { }
       STATE.drawing = false;
       STATE.activePath = null;
-      requestRedraw();
       updateToolbar();
     }
 
@@ -1284,8 +1308,7 @@ export function bindCanvasEvents(): void {
     if (!STATE.drawing || !STATE.activePath) return;
     evt.preventDefault();
     evt.stopPropagation();
-    addPoint(STATE.activePath, p.x, p.y);
-    requestRedraw();
+    if (addPoint(STATE.activePath, p.x, p.y)) requestRedraw();
   }, true);
 
   STATE.canvas.addEventListener('pointerup', function (evt: PointerEvent) {
@@ -1322,7 +1345,7 @@ export function ensureOverlay(): void {
     disconnectResizeObserver();
     STATE.host = host;
     STATE.slideKey = slideKey;
-    host.classList.add('lia-annot-host');
+    if (!host.classList.contains('lia-annot-host')) host.classList.add('lia-annot-host');
 
     let shell = findDirectChildByClass(host, 'lia-annot-shell');
     if (!shell) {
@@ -1343,7 +1366,7 @@ export function ensureOverlay(): void {
     if (!ring) {
       ring = document.createElement('span');
       ring.className = 'lia-annot-eraser-ring';
-      ring.dataset.on = '0';
+      setAttribute(ring, 'data-on', '0');
       shell.appendChild(ring);
     }
 
@@ -1358,7 +1381,7 @@ export function ensureOverlay(): void {
     if (!dgsCrosshair) {
       dgsCrosshair = document.createElement('div');
       dgsCrosshair.className = 'lia-annot-dgs-crosshair';
-      dgsCrosshair.dataset.on = '0';
+      setAttribute(dgsCrosshair, 'data-on', '0');
       shell.appendChild(dgsCrosshair);
     }
 
@@ -1366,7 +1389,7 @@ export function ensureOverlay(): void {
     if (!dgsPrompt) {
       dgsPrompt = document.createElement('div');
       dgsPrompt.className = 'lia-annot-dgs-prompt';
-      dgsPrompt.dataset.on = '0';
+      setAttribute(dgsPrompt, 'data-on', '0');
       dgsPrompt.innerHTML = ''
         + '<div class="lia-annot-dgs-prompt-title">Coordinate system sketch detected</div>'
         + '<div class="lia-annot-dgs-prompt-sub">Create a DGS coordinate system?</div>'
@@ -1403,8 +1426,8 @@ export function ensureOverlay(): void {
       submitBtn = document.createElement('button');
       submitBtn.type = 'button';
       submitBtn.className = 'lia-annot-rect-submit';
-      submitBtn.textContent = tUi('rectSubmit');
-      submitBtn.style.display = 'none';
+      setText(submitBtn, tUi('rectSubmit'));
+      setStyle(submitBtn, 'display', 'none');
       shell.appendChild(submitBtn);
       submitBtn.addEventListener('pointerdown', function (evt) { evt.preventDefault(); evt.stopPropagation(); }, true);
       submitBtn.addEventListener('click', function (evt) {
@@ -1429,7 +1452,7 @@ export function ensureOverlay(): void {
     if (!rectProg) {
       rectProg = document.createElement('div');
       rectProg.className = 'lia-annot-rect-progress';
-      rectProg.dataset.on = '0';
+      setAttribute(rectProg, 'data-on', '0');
       rectProg.innerHTML = '<div class="lia-annot-rect-progbar"><div class="lia-annot-rect-progfill"></div></div><div class="lia-annot-rect-progtxt">0%</div>';
       shell.appendChild(rectProg);
       rectProg.addEventListener('pointerdown', function (evt) {
@@ -1444,8 +1467,8 @@ export function ensureOverlay(): void {
       clearBtn.type = 'button';
       clearBtn.className = 'lia-annot-rect-clear';
       clearBtn.setAttribute('aria-label', tUi('rectClearAria'));
-      clearBtn.textContent = '×';
-      clearBtn.style.display = 'none';
+      setText(clearBtn, '×');
+      setStyle(clearBtn, 'display', 'none');
       shell.appendChild(clearBtn);
       clearBtn.addEventListener('pointerdown', function (evt) { evt.preventDefault(); evt.stopPropagation(); }, true);
       clearBtn.addEventListener('click', function (evt) {
@@ -1460,8 +1483,8 @@ export function ensureOverlay(): void {
       chooseQuizBtn = document.createElement('button');
       chooseQuizBtn.type = 'button';
       chooseQuizBtn.className = 'lia-annot-rect-choosequiz';
-      chooseQuizBtn.textContent = tUi('rectChooseQuiz');
-      chooseQuizBtn.style.display = 'none';
+      setText(chooseQuizBtn, tUi('rectChooseQuiz'));
+      setStyle(chooseQuizBtn, 'display', 'none');
       shell.appendChild(chooseQuizBtn);
       chooseQuizBtn.addEventListener('pointerdown', function (evt) { evt.preventDefault(); evt.stopPropagation(); }, true);
       chooseQuizBtn.addEventListener('click', function (evt) {
@@ -1522,17 +1545,21 @@ export function syncOverlayInteractivity(): void {
   if (_dgsPlacementMode && (!visible || isReadOnly())) _dgsPlacementMode = false;
   const placeMode = _dgsPlacementMode && visible && !isReadOnly();
 
-  for (let i = 0; i < shells.length; i++) {
-    const shell = shells[i];
+  for (const shell of shells) {
     const canvas = shell.querySelector('.lia-annot-canvas') as HTMLElement | null;
-    shell.dataset.mode = placeMode ? 'place' : 'cursor';
-    shell.dataset.hidden = visible ? '0' : '1';
-    shell.style.pointerEvents = 'none';
-    shell.style.display = visible ? '' : 'none';
+    const active = shell === STATE.shell;
+    const shellMode = active ? (placeMode ? 'place' : mode) : 'cursor';
+    const interactive = active && visible && !_choosingQuiz && shellMode !== 'cursor';
+    // Write the final mode directly; resetting to cursor first causes two
+    // mutations on every sync while drawing or erasing.
+    setAttribute(shell, 'data-mode', shellMode);
+    setAttribute(shell, 'data-hidden', visible ? '0' : '1');
+    setStyle(shell, 'pointer-events', 'none');
+    setStyle(shell, 'display', visible ? '' : 'none');
     if (canvas) {
-      canvas.style.pointerEvents = 'none';
-      canvas.style.touchAction = 'auto';
-      canvas.style.cursor = 'default';
+      setStyle(canvas, 'pointer-events', interactive ? 'auto' : 'none');
+      setStyle(canvas, 'touch-action', interactive ? 'none' : 'auto');
+      setStyle(canvas, 'cursor', interactive ? 'crosshair' : 'default');
     }
   }
 
@@ -1543,34 +1570,14 @@ export function syncOverlayInteractivity(): void {
     return;
   }
   if (!STATE.shell || !STATE.canvas) { hideEraserRing(); return; }
-
-  STATE.shell.style.display = '';
-  STATE.shell.dataset.hidden = '0';
-  STATE.shell.dataset.mode = placeMode ? 'place' : mode;
-  STATE.shell.style.pointerEvents = 'none';
-
-  if (placeMode) {
-    STATE.canvas.style.pointerEvents = 'auto';
-    STATE.canvas.style.touchAction = 'none';
-    STATE.canvas.style.cursor = 'crosshair';
-  } else if (mode === 'pen' || mode === 'eraser' || mode === 'rect') {
-    STATE.canvas.style.pointerEvents = 'auto';
-    STATE.canvas.style.touchAction = 'none';
-    STATE.canvas.style.cursor = 'crosshair';
-  } else {
-    STATE.canvas.style.pointerEvents = 'none';
-    STATE.canvas.style.touchAction = 'auto';
-    STATE.canvas.style.cursor = 'default';
-  }
-
   if (mode === 'eraser' && !placeMode) { refreshEraserRing(); } else { hideEraserRing(); }
   if (!placeMode) setDgsCrosshairVisible(false);
   syncRectButtons();
 }
 
-export function syncCanvasSize(): void {
-  if (!STATE.host || !STATE.canvas || !STATE.ctx || !STATE.shell) return;
-  STATE.dpr = window.devicePixelRatio || 1;
+export function syncCanvasSize(): boolean {
+  if (!STATE.host || !STATE.canvas || !STATE.ctx || !STATE.shell) return false;
+  const dpr = window.devicePixelRatio || 1;
 
   const hostRect = STATE.host.getBoundingClientRect();
   const cssW = getViewportWidth();
@@ -1590,34 +1597,55 @@ export function syncCanvasSize(): void {
   cssH = Math.min(cssH, window.innerHeight);
 
   const offsetLeft = Math.round(-hostRect.left);
+  let resized = STATE.cssW !== cssW || STATE.cssH !== cssH || STATE.dpr !== dpr;
   STATE.cssW = cssW;
   STATE.cssH = cssH;
+  STATE.dpr = dpr;
 
-  STATE.shell.style.left = offsetLeft + 'px';
-  STATE.shell.style.top = '0px';
-  STATE.shell.style.width = cssW + 'px';
-  STATE.shell.style.height = cssH + 'px';
-  STATE.canvas.style.width = cssW + 'px';
-  STATE.canvas.style.height = cssH + 'px';
+  setStyle(STATE.shell, 'left', offsetLeft + 'px');
+  setStyle(STATE.shell, 'top', '0px');
+  setStyle(STATE.shell, 'width', cssW + 'px');
+  setStyle(STATE.shell, 'height', cssH + 'px');
+  setStyle(STATE.canvas, 'width', cssW + 'px');
+  setStyle(STATE.canvas, 'height', cssH + 'px');
 
   const pxW = Math.max(1, Math.round(cssW * STATE.dpr));
   const pxH = Math.max(1, Math.round(cssH * STATE.dpr));
-  if (STATE.canvas.width !== pxW) STATE.canvas.width = pxW;
-  if (STATE.canvas.height !== pxH) STATE.canvas.height = pxH;
+  if (STATE.canvas.width !== pxW) { STATE.canvas.width = pxW; resized = true; }
+  if (STATE.canvas.height !== pxH) { STATE.canvas.height = pxH; resized = true; }
 
-  refreshEraserRing();
-  syncRectButtons();
+  if (resized) { refreshEraserRing(); syncRectButtons(); }
+  return resized;
+}
+
+let syncPending = false;
+let redrawPending = false;
+
+function requestFrame(): void {
+  if (STATE.syncRAF) return;
+  // One frame measures geometry first and then paints at most once. Keeping
+  // redraw separate used to paint with stale dimensions and again next frame.
+  STATE.syncRAF = requestAnimationFrame(function () {
+    STATE.syncRAF = 0;
+    const sync = syncPending;
+    const draw = redrawPending;
+    syncPending = false;
+    redrawPending = false;
+    let resized = false;
+    if (sync) {
+      ensureOverlay();
+      resized = syncCanvasSize();
+      syncToolbarPosition();
+    } else if (draw) {
+      syncDgsWidgetsLayer();
+    }
+    if (draw || resized || canvasTargetChanged()) redrawNow(resized);
+  });
 }
 
 export function requestSync(): void {
-  if (STATE.syncRAF) return;
-  STATE.syncRAF = requestAnimationFrame(function () {
-    STATE.syncRAF = 0;
-    ensureOverlay();
-    syncCanvasSize();
-    import('./ui').then(({ syncToolbarPosition }) => syncToolbarPosition());
-    requestRedraw();
-  });
+  syncPending = true;
+  requestFrame();
 }
 
 // ----- Rendering -----
@@ -1679,13 +1707,52 @@ function drawItem(ctx: CanvasRenderingContext2D, item: import('./types').PathIte
   ctx.restore();
 }
 
-export function redrawNow(): void {
+let lastCanvasTarget: unknown[] = [];
+let lastDrawing: unknown[] = [];
+
+function canvasTarget(): unknown[] {
+  return [STATE.canvas, STATE.slideKey, STATE.cssW, STATE.cssH, STATE.dpr, STORE.ui.visible];
+}
+
+function sameValues(a: unknown[], b: unknown[]): boolean {
+  return a.length === b.length && a.every((value, i) => value === b[i]);
+}
+
+function canvasTargetChanged(): boolean {
+  return !sameValues(lastCanvasTarget, canvasTarget());
+}
+
+export function redrawNow(force = false): void {
   if (!STATE.canvas || !STATE.ctx) return;
+  const target = canvasTarget();
+  const slide = ensureSlide(STATE.slideKey || getSlideKey());
+  const accent = (_markedRect || _draftRect)
+    ? getComputedStyle(document.documentElement).getPropertyValue('--lia-annot-accent').trim() || '#3b82f6'
+    : '';
+  const drawing: unknown[] = [];
+  if (STORE.ui.visible) {
+    // Committed paths are immutable; drawing only appends points and imports
+    // replace paths. Compare O(paths) metadata, never serialize every point on
+    // scroll/pointermove just to find out that the canvas is already current.
+    for (const item of slide.items) {
+      if (!item) { drawing.push(item); continue; }
+      drawing.push(item, item.kind, item.tool, item.color, item.width, item.alpha,
+        item.baseW, item.points, item.points && item.points.length);
+    }
+    for (const rect of [_markedRect, _draftRect]) {
+      drawing.push(rect ? rect.x0 : null, rect ? rect.y0 : null,
+        rect ? rect.x1 : null, rect ? rect.y1 : null);
+    }
+    drawing.push(accent);
+  }
+  if (!force && sameValues(lastCanvasTarget, target) && sameValues(lastDrawing, drawing)) return;
+  lastCanvasTarget = target;
+  lastDrawing = drawing;
+
   const ctx = STATE.ctx;
   ctx.setTransform(STATE.dpr, 0, 0, STATE.dpr, 0, 0);
   ctx.clearRect(0, 0, STATE.cssW, STATE.cssH);
   if (!STORE.ui.visible) return;
-  const slide = ensureSlide(STATE.slideKey || getSlideKey());
   for (let i = 0; i < slide.items.length; i++) {
     drawItem(ctx, slide.items[i]);
   }
@@ -1695,7 +1762,6 @@ export function redrawNow(): void {
     const y = Math.min(rect.y0, rect.y1);
     const w = Math.max(1, Math.abs(rect.x1 - rect.x0));
     const h = Math.max(1, Math.abs(rect.y1 - rect.y0));
-    const accent = getComputedStyle(document.documentElement).getPropertyValue('--lia-annot-accent').trim() || '#3b82f6';
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = committed ? 0.22 : 0.16;
@@ -1714,10 +1780,6 @@ export function redrawNow(): void {
 }
 
 export function requestRedraw(): void {
-  if (STATE.redrawRAF) return;
-  STATE.redrawRAF = requestAnimationFrame(function () {
-    STATE.redrawRAF = 0;
-    redrawNow();
-    updateToolbar();
-  });
+  redrawPending = true;
+  requestFrame();
 }

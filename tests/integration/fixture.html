@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" class="lia-light" data-lia-mode="presentation">
+<head>
+<meta charset="utf-8">
+<title>Annotation / static coordinate / marker / board mode integration</title>
+<style>
+  :root { --color-background: #fff; --color-text: #222; --color-highlight: #386cb0; }
+  :root.lia-dark { --color-background: #161616; --color-text: #eee; --color-highlight: #80b9f1; }
+  html, body { margin: 0; background: var(--color-background); color: var(--color-text); }
+  #lia-toolbar-nav { position: fixed; inset: 0 0 auto; height: 42px; }
+  main { margin: 64px 100px; width: 850px; }
+  section.lia-slide { min-height: 1800px; width: 850px; position: relative; }
+  lia-coordinate-board { display: block; width: 500px; min-height: 460px; }
+  .fixture-marker { max-width: 700px; font: 20px sans-serif; }
+  .fixture-gap { height: 300px; }
+</style>
+</head>
+<body>
+<header id="lia-toolbar-nav" class="lia-header"><div class="lia-header__left"><button aria-label="Previous slide">Previous</button><button aria-label="Next slide">Next</button></div></header>
+<main class="lia-content">
+<section class="lia-slide" data-slide="0">
+<h1>Superposition</h1>
+<p class="fixture-marker">Static vectors and a marker selection area beside the annotation overlay.</p>
+<!-- Public macro output from the static Superposition graphs in profil10Lehrer.md.
+     No JSXGraph or mathematical typesetter is needed by these static fixtures. -->
+<lia-coordinate-board data-lia-coordinate-key="fixture1" data-spec="xmin=-0.6;xmax=6.6;ymin=-0.6;ymax=6.6;width=500;id=P10Superposition;achsen=1;grid=1;border=0;static=1"></lia-coordinate-board>
+<span id="linear-spec-fixture1" data-spec="P10Superposition;[[0;0];[3;0]];#0000ff;a=0" data-kind="vector" data-language="de" style="display:none"></span>
+<span id="linear-spec-fixture2" data-spec="P10Superposition;[[3;0];[3;4]];#ff8800;b=0" data-kind="vector" data-language="de" style="display:none"></span>
+<span id="linear-spec-fixture3" data-spec="P10Superposition;[[0;4];[3;4]];#0000ff;aParallel=0;linestyle=dashed" data-kind="vector" data-language="de" style="display:none"></span>
+<span id="linear-spec-fixture4" data-spec="P10Superposition;[[0;0];[0;4]];#ff8800;bParallel=0;linestyle=dashed" data-kind="vector" data-language="de" style="display:none"></span>
+<span id="linear-spec-fixture5" data-spec="P10Superposition;[[0;0];[3;4]];#ff0000;c=0" data-kind="vector" data-language="de" style="display:none"></span>
+<div class="fixture-gap"></div>
+<lia-coordinate-board data-lia-coordinate-key="fixture2" data-spec="xmin=-0.6;xmax=6.6;ymin=-0.6;ymax=6.6;width=500;id=P10Superposition3;achsen=1;grid=1;border=0;static=1"></lia-coordinate-board>
+<span id="linear-spec-fixture6" data-spec="P10Superposition3;[[1;1];[3;5]];#ff0000;a=0" data-kind="vector" data-language="de" style="display:none"></span>
+<span id="linear-spec-fixture7" data-spec="P10Superposition3;[[1;1];[5;2]];#ff8800;b=0" data-kind="vector" data-language="de" style="display:none"></span>
+<span id="linear-spec-fixture8" data-spec="P10Superposition3;[[5;2];[3;5]];#0000ff;differenz=0" data-kind="vector" data-language="de" style="display:none"></span>
+<label>Answer <input class="lia-input" type="text"></label>
+</section>
+</main>
+<script>
+(() => {
+  try { localStorage.setItem('settings', JSON.stringify({ mode: 'presentation' })); } catch (_) {}
+  const NativeObserver = window.MutationObserver;
+  const callbackCounts = Object.create(null);
+  const metrics = { mutations: 0, toolbarMutations: 0, coordinateMutations: 0, observerCallbacks: callbackCounts };
+  const observers = [];
+  // Instrument the real callbacks; no simulated template observer replaces them.
+  window.MutationObserver = class extends NativeObserver {
+    constructor(callback) {
+      const stack = new Error().stack || '';
+      const owner = ['coordinate', 'marker', 'board-mode'].find(name => stack.includes('lia-integration/' + name + '.js')) || 'annotation-or-other';
+      super((records, observer) => {
+        callbackCounts[owner] = (callbackCounts[owner] || 0) + 1;
+        callback(records, observer);
+      });
+    }
+  };
+  const observer = new NativeObserver(records => {
+    metrics.mutations += records.length;
+    for (const record of records) {
+      const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      if (target && target.closest && target.closest('.lia-annot-toolbar')) metrics.toolbarMutations++;
+    }
+  });
+  observers.push(observer);
+  observer.observe(document.documentElement, { subtree: true, attributes: true, childList: true, characterData: true });
+  window.__integration = {
+    metrics,
+    reset() {
+      for (const observer of observers) observer.takeRecords();
+      metrics.mutations = metrics.toolbarMutations = metrics.coordinateMutations = 0;
+      for (const key of Object.keys(callbackCounts)) delete callbackCounts[key];
+    },
+    watchCoordinates() {
+      for (const host of document.querySelectorAll('lia-coordinate-board')) {
+        const coordinateObserver = new NativeObserver(records => { metrics.coordinateMutations += records.length; });
+        coordinateObserver.observe(host.shadowRoot || host, { subtree: true, attributes: true, childList: true, characterData: true });
+        observers.push(coordinateObserver);
+      }
+    },
+    coordinateSvgs() {
+      return Array.from(document.querySelectorAll('lia-coordinate-board')).map(host =>
+        (host.shadowRoot || host).querySelector('svg'));
+    }
+  };
+})();
+</script>
+</body>
+</html>

@@ -110,7 +110,6 @@ export interface State {
   drawing: boolean;
   activePath: PathItem | null;
   syncRAF: number;
-  redrawRAF: number;
   resizeObserver: ResizeObserver | null;
   toolbar: HTMLElement | null;
   eraserRing: HTMLElement | null;
