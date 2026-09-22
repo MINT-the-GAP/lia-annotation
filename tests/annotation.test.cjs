@@ -104,6 +104,67 @@ test('real geometry changes repaint once and preserve existing strokes', async t
   assert.ok(await alphaAt(page, 330, 220) > 0);
 });
 
+test('drawing and erasing work in a slide area revealed by scrolling', async t => {
+  const page = await usingPage(t, {
+    afterContent: page => page.evaluate(() => {
+      document.querySelector('.lia-slide').style.height = '1800px';
+    })
+  });
+  const canvas = page.locator('.lia-annot-canvas');
+  assert.equal(await canvas.evaluate(el => el.getBoundingClientRect().height), 1800);
+
+  await clickTool(page, 'pen');
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await settle(page);
+  await stroke(page, [200, 1200], [400, 1200]);
+  assert.ok(await alphaAt(page, 300, 1200) > 0, 'the scrolled area accepts pen strokes');
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await settle(page);
+  assert.ok(await alphaAt(page, 300, 1200) > 0, 'the stroke stays in place after scrolling');
+
+  await clickTool(page, 'eraser');
+  await stroke(page, [300, 1170], [300, 1230]);
+  assert.equal(await alphaAt(page, 300, 1200), 0, 'the scrolled area accepts erasing');
+});
+
+test('board mode height extension remains drawable', async t => {
+  const page = await usingPage(t, {
+    afterContent: page => page.evaluate(() => {
+      const main = document.querySelector('main');
+      main.classList.add('lia-slide__content');
+      const container = document.createElement('div');
+      container.className = 'lia-slide__container';
+      main.before(container);
+      container.append(main);
+      const style = document.createElement('style');
+      style.textContent = '.lia-slide__container > main.lia-slide__content::after {' +
+        'content: ""; display: block; height: var(--lia-tff-slide-exit-space); pointer-events: none;}';
+      document.head.append(style);
+      document.documentElement.style.setProperty('--lia-tff-slide-exit-space', '0px');
+    })
+  });
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--lia-tff-slide-exit-space', '1000px');
+  });
+  await settle(page, 200);
+  const dimensions = await page.evaluate(() => ({
+    host: document.querySelector('main').getBoundingClientRect().height,
+    slide: document.querySelector('.lia-slide').getBoundingClientRect().height,
+    canvas: document.querySelector('.lia-annot-canvas').getBoundingClientRect().height
+  }));
+  assert.ok(dimensions.host > dimensions.slide + 500, 'board mode adds height after the slide');
+  assert.ok(dimensions.canvas >= dimensions.host, 'the canvas covers the expanded host');
+
+  await clickTool(page, 'pen');
+  await page.evaluate(() => window.scrollTo(0, 1100));
+  await settle(page);
+  await stroke(page, [200, 1200], [400, 1200]);
+  assert.ok(await alphaAt(page, 300, 1200) > 0, 'the added area accepts pen strokes');
+});
+
 test('drawing, erasing, sliders and undo/redo keep pixels and button state in sync', async t => {
   const page = await usingPage(t);
   await clickTool(page, 'pen');

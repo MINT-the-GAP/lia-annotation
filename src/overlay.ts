@@ -1582,19 +1582,11 @@ export function syncCanvasSize(): boolean {
   const hostRect = STATE.host.getBoundingClientRect();
   const cssW = getViewportWidth();
 
-  // Measure the visible slide area, not the full <main> scroll height.
-  // Try .lia-slide or <section> inside the host first; fall back to the
-  // host's bounding rect, then clip to window.innerHeight so the canvas
-  // never balloons beyond the viewport on short slides.
+  // The slide and its host can grow independently. Board mode adds its
+  // scroll space to the host, after the slide's own content.
   const slide = STATE.host.querySelector<HTMLElement>('.lia-slide, section');
-  let cssH: number;
-  if (slide) {
-    const slideRect = slide.getBoundingClientRect();
-    cssH = Math.max(1, Math.ceil(slideRect.height || 0));
-  } else {
-    cssH = Math.max(1, Math.ceil(hostRect.height || 0));
-  }
-  cssH = Math.min(cssH, window.innerHeight);
+  const slideH = slide ? slide.getBoundingClientRect().height : 0;
+  const cssH = Math.max(1, Math.ceil(hostRect.height || 0), Math.ceil(slideH || 0));
 
   const offsetLeft = Math.round(-hostRect.left);
   let resized = STATE.cssW !== cssW || STATE.cssH !== cssH || STATE.dpr !== dpr;
