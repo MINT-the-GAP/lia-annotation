@@ -564,6 +564,82 @@ test('DGS placement, repeated refresh, same-ID reposition and clear preserve wid
   await assertQuiet(page);
 });
 
+test('DGS close button removes state and disposes the live coordinate board', async t => {
+  const page = await usingPage(t, {
+    beforeBoot: () => {
+      window.__dgsCleanup = { coord: [], dgs: [], regression: [], freed: [] };
+      window.__disposeDGSForBoard = id => window.__dgsCleanup.dgs.push(id);
+      window.__disposeRegressionForBoard = id => window.__dgsCleanup.regression.push(id);
+      window.JXG = {
+        JSXGraph: {
+          initBoard: id => ({
+            id,
+            __coordCleanup: () => window.__dgsCleanup.coord.push(id)
+          }),
+          freeBoard: board => window.__dgsCleanup.freed.push(board.id)
+        }
+      };
+      window.__coord = {
+        parseCoordSpec: spec => {
+          const id = (String(spec).match(/(?:^|;)id=([^;]+)/) || [])[1] || 'test-board';
+          return { id, width: 240, xmin: -7, xmax: 7, ymin: -5, ymax: 5, border: false };
+        },
+        loadStoredBoardState: () => null,
+        prepareBoardContainer: () => {},
+        createBoardDecorations: () => {},
+        wireBoard: (board, cfg) => {
+          window.__boards = window.__boards || {};
+          window.__boards[cfg.id] = board;
+        },
+        getNeutralColor: () => '#222',
+        getAccentColor: () => '#0aa'
+      };
+      window.__setupDGS = () => {};
+    }
+  });
+
+  await clickTool(page, 'dgs-place');
+  const canvasBox = await page.locator('.lia-annot-canvas').boundingBox();
+  await page.mouse.click(canvasBox.x + 500, canvasBox.y + 300);
+  await settle(page, 200);
+
+  const remove = page.locator('.lia-annot-dgs-remove');
+  const board = page.locator('.lia-annot-dgs-board');
+  assert.equal(await remove.count(), 1);
+  assert.equal(await remove.evaluate(el => el.tagName), 'BUTTON');
+  assert.equal(await remove.getAttribute('aria-label'), 'Remove coordinate system');
+  const boardBox = await board.boundingBox();
+  const removeBox = await remove.boundingBox();
+  assert.ok(removeBox.y < boardBox.y, 'close button sits outside the board at the top');
+  assert.ok(removeBox.x + removeBox.width / 2 >= boardBox.x + boardBox.width - 2, 'close button sits at the board right edge');
+
+  await page.evaluate(() => window.__LIA_ANNOTATION__.setReadOnly(true));
+  assert.equal(await remove.isVisible(), false, 'close button is hidden in read-only mode');
+  await page.evaluate(() => window.__LIA_ANNOTATION__.setReadOnly(false));
+  assert.equal(await remove.isVisible(), true);
+
+  const boardId = await board.getAttribute('id');
+  assert.equal(await page.evaluate(id => !!window.__boards?.[id], boardId), true);
+  await remove.click();
+  await settle(page, 200);
+
+  assert.equal(await page.locator('.lia-annot-dgs-widget').count(), 0);
+  assert.equal(await page.evaluate(() => window.__LIA_ANNOTATION__.getStore().slides['#1'].widgets.length), 0);
+  assert.deepEqual(await page.evaluate(id => ({
+    coord: window.__dgsCleanup.coord,
+    dgs: window.__dgsCleanup.dgs,
+    regression: window.__dgsCleanup.regression,
+    freed: window.__dgsCleanup.freed,
+    registered: !!window.__boards?.[id]
+  }), boardId), {
+    coord: [boardId],
+    dgs: [boardId],
+    regression: [boardId],
+    freed: [boardId],
+    registered: false
+  });
+});
+
 
 test('OCR preview recovers after a failed KaTeX load without rebuilding unchanged output', async t => {
   const page = await usingPage(t);

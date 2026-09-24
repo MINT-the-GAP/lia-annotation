@@ -669,12 +669,26 @@ function maybePromptDgsInsert(): void {
   setDgsPromptVisible(true);
 }
 
-function getJxgGlobal(): Record<string, unknown> | null {
+function getDgsRuntimeCandidates(): Array<Record<string, unknown>> {
   const candidates: Array<Record<string, unknown>> = [];
   candidates.push(window as unknown as Record<string, unknown>);
-  try { if (window.parent && window.parent !== window) candidates.push(window.parent as unknown as Record<string, unknown>); } catch (_) { }
-  try { if (window.top && window.top !== window) candidates.push(window.top as unknown as Record<string, unknown>); } catch (_) { }
+  try {
+    if (window.parent && window.parent !== window) {
+      const parent = window.parent as unknown as Record<string, unknown>;
+      if (!candidates.includes(parent)) candidates.push(parent);
+    }
+  } catch (_) { }
+  try {
+    if (window.top && window.top !== window) {
+      const top = window.top as unknown as Record<string, unknown>;
+      if (!candidates.includes(top)) candidates.push(top);
+    }
+  } catch (_) { }
+  return candidates;
+}
 
+function getJxgGlobal(): Record<string, unknown> | null {
+  const candidates = getDgsRuntimeCandidates();
   for (let i = 0; i < candidates.length; i++) {
     const jxg = candidates[i].JXG as Record<string, unknown> | undefined;
     const jsx = jxg && (jxg.JSXGraph as Record<string, unknown> | undefined);
@@ -702,10 +716,7 @@ type CoordApi = {
 };
 
 function getCoordGlobal(): CoordApi | null {
-  const candidates: Array<Record<string, unknown>> = [];
-  candidates.push(window as unknown as Record<string, unknown>);
-  try { if (window.parent && window.parent !== window) candidates.push(window.parent as unknown as Record<string, unknown>); } catch (_) { }
-  try { if (window.top && window.top !== window) candidates.push(window.top as unknown as Record<string, unknown>); } catch (_) { }
+  const candidates = getDgsRuntimeCandidates();
 
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i].__coord as Partial<CoordApi> | undefined;
@@ -724,10 +735,7 @@ function getCoordGlobal(): CoordApi | null {
 }
 
 function callSetupDgs(uid: string, spec: string, language: 'de' | 'en'): void {
-  const candidates: Array<Record<string, unknown>> = [];
-  candidates.push(window as unknown as Record<string, unknown>);
-  try { if (window.parent && window.parent !== window) candidates.push(window.parent as unknown as Record<string, unknown>); } catch (_) { }
-  try { if (window.top && window.top !== window) candidates.push(window.top as unknown as Record<string, unknown>); } catch (_) { }
+  const candidates = getDgsRuntimeCandidates();
 
   for (let i = 0; i < candidates.length; i++) {
     const setup = candidates[i].__setupDGS as ((uid: string, spec: string, language?: string) => void) | undefined;
@@ -812,8 +820,15 @@ function initWidgetBoard(el: HTMLElement): void {
     (boardHost as unknown as { __liaAnnotBoard?: unknown }).__liaAnnotBoard = board;
 
     callSetupDgs(widgetId, spec, language);
-    setTimeout(function () { callSetupDgs(widgetId, spec, language); }, 0);
-    setTimeout(function () { callSetupDgs(widgetId, spec, language); }, 120);
+    const timers = [
+      window.setTimeout(function () {
+        if (boardHost.isConnected) callSetupDgs(widgetId, spec, language);
+      }, 0),
+      window.setTimeout(function () {
+        if (boardHost.isConnected) callSetupDgs(widgetId, spec, language);
+      }, 120)
+    ];
+    (boardHost as unknown as { __liaAnnotSetupTimers?: number[] }).__liaAnnotSetupTimers = timers;
   } catch (_) {
     renderFallbackAxes(boardHost);
   }
@@ -826,13 +841,134 @@ let widgetsKey = '';
 let widgetElements: HTMLElement[] = [];
 const widgetPositions = new WeakMap<HTMLElement, number>();
 
+function disposeDgsWidgetElement(el: HTMLElement): void {
+  const boardHost = el.querySelector('.lia-annot-dgs-board') as HTMLElement | null;
+  if (!boardHost) return;
+  const boardId = String(boardHost.id || ('lia-annot-dgs-board-' + String(el.dataset.id || '')));
+  const liveHost = boardHost as unknown as {
+    __liaAnnotBoard?: unknown;
+    __liaAnnotSetupTimers?: number[];
+  };
+  (liveHost.__liaAnnotSetupTimers || []).forEach(function (timer) {
+    window.clearTimeout(timer);
+  });
+  liveHost.__liaAnnotSetupTimers = [];
+
+  const candidates = getDgsRuntimeCandidates();
+  let board = liveHost.__liaAnnotBoard;
+  for (let i = 0; i < candidates.length; i++) {
+    const registry = candidates[i].__boards as Record<string, unknown> | undefined;
+    if (!board && registry) board = registry[boardId];
+    if (!board) continue;
+    const disposeDgs = candidates[i].__disposeDGSForBoard as ((id: string) => void) | undefined;
+    const disposeRegression = candidates[i].__disposeRegressionForBoard as ((id: string) => void) | undefined;
+    try { if (typeof disposeDgs === 'function') disposeDgs(boardId); } catch (_) { }
+    try { if (typeof disposeRegression === 'function') disposeRegression(boardId); } catch (_) { }
+  }
+
+  if (board && typeof board === 'object') {
+    const live = board as {
+      __coordCleanup?: () => void;
+      __coordViewportCleanup?: () => void;
+    };
+    try {
+      if (typeof live.__coordCleanup === 'function') live.__coordCleanup();
+      else if (typeof live.__coordViewportCleanup === 'function') live.__coordViewportCleanup();
+    } catch (_) { }
+    for (let i = 0; i < candidates.length; i++) {
+      const jxg = candidates[i].JXG as Record<string, unknown> | undefined;
+      const graph = jxg && (jxg.JSXGraph as { freeBoard?: (item: unknown) => void } | undefined);
+      if (!graph || typeof graph.freeBoard !== 'function') continue;
+      try { graph.freeBoard(board); } catch (_) { }
+      break;
+    }
+  }
+
+  for (let i = 0; i < candidates.length; i++) {
+    const root = candidates[i];
+    const registry = root.__boards as Record<string, unknown> | undefined;
+    try {
+      if (registry && (!board || registry[boardId] === board)) delete registry[boardId];
+    } catch (_) { }
+    const buckets = ['__points', '__pointStates', '__pointGraphs', '__pointGraphStates'];
+    for (let j = 0; j < buckets.length; j++) {
+      const bucket = root[buckets[j]] as Record<string, unknown> | undefined;
+      try { if (bucket) delete bucket[boardId]; } catch (_) { }
+    }
+  }
+  liveHost.__liaAnnotBoard = undefined;
+}
+
+function removeDgsWidget(id: string): void {
+  if (!id || isReadOnly()) return;
+  const widgets = currentWidgets();
+  const index = widgets.findIndex(function (widget) { return widget.id === id; });
+  if (index < 0) return;
+  widgets.splice(index, 1);
+  syncDgsWidgetsLayer();
+  requestSync(true);
+}
+
+function ensureDgsWidgetChrome(el: HTMLElement): void {
+  const board = el.querySelector('.lia-annot-dgs-board') as HTMLElement | null;
+  if (!board) return;
+  let frame = el.querySelector('.lia-annot-dgs-frame') as HTMLElement | null;
+  if (!frame) {
+    frame = document.createElement('div');
+    frame.className = 'lia-annot-dgs-frame';
+    board.parentNode!.insertBefore(frame, board);
+    frame.appendChild(board);
+  }
+  let button = frame.querySelector('.lia-annot-dgs-remove') as HTMLButtonElement | null;
+  if (!button) {
+    button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'lia-annot-dgs-remove';
+    button.setAttribute('data-snapshot-admin', '1');
+    setText(button, '×');
+    button.addEventListener('pointerdown', function (evt) {
+      evt.stopPropagation();
+    }, true);
+    button.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const widget = button!.closest('.lia-annot-dgs-widget') as HTMLElement | null;
+      removeDgsWidget(String(widget && widget.dataset.id || ''));
+    }, true);
+    frame.appendChild(button);
+  }
+  const label = tUi('dgsRemove');
+  setAttribute(button, 'aria-label', label);
+  setAttribute(button, 'title', label);
+}
+
+function syncDgsRemoveButtons(): void {
+  if (!STATE.host) return;
+  const canRemove = STORE.ui.visible && !isReadOnly();
+  const buttons = STATE.host.querySelectorAll<HTMLButtonElement>('.lia-annot-dgs-remove');
+  buttons.forEach(function (button) {
+    if (button.disabled === canRemove) button.disabled = !canRemove;
+    setStyle(button, 'display', canRemove ? 'inline-flex' : 'none');
+  });
+}
+
 function syncDgsWidgetsLayer(): void {
   if (!STATE.host) return;
   const host = STATE.host as HTMLElement;
   const widgets = currentWidgets().slice().sort(function (a, b) { return a.y - b.y; });
   const key = JSON.stringify([STATE.slideKey, widgets]);
   if (widgetsHost === host && widgetsKey === key &&
-      widgetElements.every(el => el.parentElement === host)) return;
+      widgetElements.every(el => el.parentElement === host)) {
+    syncDgsRemoveButtons();
+    return;
+  }
+  if (widgetsHost && widgetsHost !== host) {
+    widgetElements.forEach(function (old) {
+      if (!old.isConnected) return;
+      disposeDgsWidgetElement(old);
+      old.remove();
+    });
+  }
   const elements: HTMLElement[] = [];
 
   function isShellNode(node: Element | null): boolean {
@@ -884,10 +1020,10 @@ function syncDgsWidgetsLayer(): void {
       el = document.createElement('div');
       el.className = 'lia-annot-dgs-widget';
       setAttribute(el, 'data-id', w.id);
-      el.innerHTML = '<span class="lia-annot-dgs-spec" style="display:none;"></span><div class="lia-annot-dgs-board"></div>';
+      el.innerHTML = '<span class="lia-annot-dgs-spec" style="display:none;"></span><div class="lia-annot-dgs-frame"><div class="lia-annot-dgs-board"></div></div>';
     }
 
-    setStyle(el, 'position', 'static');
+    setStyle(el, 'position', 'relative');
     setStyle(el, 'left', '');
     setStyle(el, 'top', '');
     setStyle(el, 'width', '100%');
@@ -904,6 +1040,7 @@ function syncDgsWidgetsLayer(): void {
       setAttribute(specNode, 'data-spec', resolvedSpec);
       setAttribute(specNode, 'data-language', resolvedLanguage);
     }
+    ensureDgsWidgetChrome(el);
 
     if (el.parentNode !== host || widgetPositions.get(el) !== w.y) {
       const anchor = findInsertAfter(w.y);
@@ -929,11 +1066,13 @@ function syncDgsWidgetsLayer(): void {
   for (let i = 0; i < children.length; i++) {
     const id = String(children[i].dataset.id || '');
     if (keep[id]) continue;
+    disposeDgsWidgetElement(children[i]);
     children[i].remove();
   }
   widgetsHost = host;
   widgetsKey = JSON.stringify([STATE.slideKey, widgets]);
   widgetElements = elements;
+  syncDgsRemoveButtons();
 }
 
 function placeDgsWidgetAt(x: number, y: number): void {
@@ -1562,6 +1701,7 @@ export function syncOverlayInteractivity(): void {
       setStyle(canvas, 'cursor', interactive ? 'crosshair' : 'default');
     }
   }
+  syncDgsRemoveButtons();
 
   if (!visible) {
     hideEraserRing();

@@ -451,11 +451,49 @@ export const CSS = `
     clear: both;
   }
 
+  .lia-annot-dgs-frame {
+    position: relative;
+    display: block;
+    width: min(240px, 100%);
+    overflow: visible;
+  }
+
   .lia-annot-dgs-board {
     position: relative;
-    width: min(240px, 100%);
+    width: 100%;
     height: 180px;
     background: transparent;
+  }
+
+  .lia-annot-dgs-remove {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    z-index: 502;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--lia-annot-border);
+    border-radius: 999px;
+    background: var(--lia-annot-panel-bg);
+    color: var(--lia-annot-fg);
+    box-shadow: var(--lia-annot-panel-shadow);
+    font: 700 18px/1 system-ui, sans-serif;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .lia-annot-dgs-remove:hover {
+    color: var(--lia-annot-danger, #c0392b);
+    border-color: currentColor;
+  }
+
+  .lia-annot-dgs-remove:focus-visible {
+    outline: 2px solid var(--lia-annot-accent);
+    outline-offset: 2px;
   }
 
   .lia-annot-dgs-fallback {

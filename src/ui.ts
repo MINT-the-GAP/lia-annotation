@@ -212,6 +212,7 @@ type UiTextKey =
   | 'rectChooseCancel'
   | 'rectChosenFallback'
   | 'rectClearAria'
+  | 'dgsRemove'
   | 'ocrRecognize'
   | 'ocrSubmit'
   | 'ocrResult'
@@ -289,6 +290,12 @@ const UI_TEXT: Record<UiTextKey, Record<UiLang, string>> = {
     de: 'Markiertes Rechteck löschen',
     es: 'Borrar rectangulo marcado',
     fr: 'Effacer le rectangle marqué'
+  },
+  dgsRemove: {
+    en: 'Remove coordinate system',
+    de: 'Koordinatensystem entfernen',
+    es: 'Eliminar sistema de coordenadas',
+    fr: 'Supprimer le système de coordonnées'
   },
   ocrRecognize: {
     en: 'Recognize',
