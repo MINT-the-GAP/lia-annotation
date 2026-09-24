@@ -165,6 +165,67 @@ test('board mode height extension remains drawable', async t => {
   assert.ok(await alphaAt(page, 300, 1200) > 0, 'the added area accepts pen strokes');
 });
 
+test('fixed-height LiaScript scroller keeps overflowed board space drawable', async t => {
+  const page = await usingPage(t, {
+    afterContent: page => page.evaluate(() => {
+      const main = document.querySelector('main');
+      main.classList.add('lia-slide__content');
+      main.style.margin = '0';
+      main.style.height = '620px';
+
+      const container = document.createElement('div');
+      container.className = 'lia-slide__container';
+      container.style.cssText = 'position:relative;height:640px;overflow-y:auto;margin:40px 80px;width:800px';
+      main.before(container);
+      container.append(main);
+
+      main.dataset.testBoardSpacer = '';
+      const boardStyle = document.createElement('style');
+      boardStyle.dataset.testBoardSpacerStyle = '1';
+      boardStyle.textContent = '.lia-slide__container > main.lia-slide__content::after {' +
+        'content: attr(data-test-board-spacer); display: block; height: 1200px; pointer-events: none;}';
+      document.head.append(boardStyle);
+
+      window.__naturalBoardScrollHeight = container.scrollHeight;
+    })
+  });
+
+  const dimensions = await page.evaluate(() => {
+    const main = document.querySelector('main');
+    const container = document.querySelector('.lia-slide__container');
+    const canvas = document.querySelector('.lia-annot-canvas');
+    return {
+      mainRect: main.getBoundingClientRect().height,
+      mainScroll: main.scrollHeight,
+      containerScroll: container.scrollHeight,
+      naturalContainerScroll: window.__naturalBoardScrollHeight,
+      canvas: canvas.getBoundingClientRect().height
+    };
+  });
+  assert.ok(
+    dimensions.mainScroll > dimensions.mainRect + 500,
+    'board spacer overflows the fixed-height main: ' + JSON.stringify(dimensions)
+  );
+  assert.ok(dimensions.canvas >= dimensions.mainScroll, 'the canvas covers main scrollHeight, not only its border box');
+  assert.ok(dimensions.containerScroll <= dimensions.naturalContainerScroll + 1, 'the overlay does not grow the scroller');
+
+  await clickTool(page, 'pen');
+  await page.locator('.lia-slide__container').evaluate(el => { el.scrollTop = 1000; });
+  await settle(page);
+  await stroke(page, [200, 1200], [400, 1200]);
+  assert.ok(await alphaAt(page, 300, 1200) > 0, 'overflowed board space accepts pen strokes');
+
+  await page.evaluate(() => {
+    document.querySelector('[data-test-board-spacer-style]').remove();
+    window.__annotationTest.overlay.requestSync(true);
+  });
+  await settle(page);
+  assert.ok(
+    await page.locator('.lia-annot-canvas').evaluate(el => el.getBoundingClientRect().height) <= 640,
+    'the canvas shrinks again after the overflowed board space is removed'
+  );
+});
+
 test('drawing, erasing, sliders and undo/redo keep pixels and button state in sync', async t => {
   const page = await usingPage(t);
   await clickTool(page, 'pen');

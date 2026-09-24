@@ -1125,7 +1125,7 @@ export function bindResizeObserver(): void {
   disconnectResizeObserver();
   if (!STATE.host) return;
   try {
-    STATE.resizeObserver = new ResizeObserver(function () { requestSync(); });
+    STATE.resizeObserver = new ResizeObserver(function () { requestSync(true); });
     STATE.resizeObserver.observe(STATE.host);
   } catch (_) { }
 }
@@ -1575,18 +1575,86 @@ export function syncOverlayInteractivity(): void {
   syncRectButtons();
 }
 
-export function syncCanvasSize(): boolean {
+let measuredHeightHost: Element | null = null;
+let measuredContentH = 0;
+
+function availableContentHeight(hostRect: DOMRect): number {
+  if (!STATE.host) return 1;
+
+  const slide = STATE.host.querySelector<HTMLElement>('.lia-slide, section');
+  const slideH = slide
+    ? Math.max(slide.getBoundingClientRect().height, slide.scrollHeight)
+    : 0;
+  const hostH = Math.max(hostRect.height, STATE.host.scrollHeight);
+
+  const scroller = STATE.host.closest<HTMLElement>('.lia-slide__container');
+  let scrollerH = 0;
+  if (scroller) {
+    const scrollerRect = scroller.getBoundingClientRect();
+    const hostTop = hostRect.top - scrollerRect.top + scroller.scrollTop - scroller.clientTop;
+    scrollerH = Math.max(0, scroller.scrollHeight - Math.max(0, hostTop));
+  }
+
+  return Math.max(1, hostH, slideH, scrollerH);
+}
+
+function restoreStyleProperty(
+  style: CSSStyleDeclaration,
+  name: string,
+  value: string,
+  priority: string
+): void {
+  if (value) style.setProperty(name, value, priority);
+  else style.removeProperty(name);
+}
+
+function measureNaturalContentHeight(): number {
+  if (!STATE.host || !STATE.shell) return 1;
+  const style = STATE.shell.style;
+  const oldHeight = style.getPropertyValue('height');
+  const oldHeightPriority = style.getPropertyPriority('height');
+  const oldOverflow = style.getPropertyValue('overflow');
+  const oldOverflowPriority = style.getPropertyPriority('overflow');
+
+  // An absolutely positioned overlay contributes to scrollHeight. Collapse
+  // and clip it for this measurement so a previously tall canvas can shrink
+  // again when LiaScript removes content or its board-mode exit spacer.
+  try {
+    style.setProperty('height', '0px', 'important');
+    style.setProperty('overflow', 'hidden', 'important');
+    return availableContentHeight(STATE.host.getBoundingClientRect());
+  } finally {
+    restoreStyleProperty(style, 'height', oldHeight, oldHeightPriority);
+    restoreStyleProperty(style, 'overflow', oldOverflow, oldOverflowPriority);
+  }
+}
+
+export function syncCanvasSize(measureContent = true): boolean {
   if (!STATE.host || !STATE.canvas || !STATE.ctx || !STATE.shell) return false;
   const dpr = window.devicePixelRatio || 1;
 
   const hostRect = STATE.host.getBoundingClientRect();
   const cssW = getViewportWidth();
 
-  // The slide and its host can grow independently. Board mode adds its
-  // scroll space to the host, after the slide's own content.
-  const slide = STATE.host.querySelector<HTMLElement>('.lia-slide, section');
-  const slideH = slide ? slide.getBoundingClientRect().height : 0;
-  const cssH = Math.max(1, Math.ceil(hostRect.height || 0), Math.ceil(slideH || 0));
+  // The slide and its host can grow independently. In LiaScript's board mode
+  // the host can keep a fixed border-box height while its content and exit
+  // spacer extend only its scrollHeight.
+  if (measuredHeightHost !== STATE.host) {
+    measuredHeightHost = STATE.host;
+    measuredContentH = 0;
+    measureContent = true;
+  }
+  if (measureContent || measuredContentH <= 0) {
+    measuredContentH = measureNaturalContentHeight();
+  } else {
+    // Scroll itself is hot-path geometry. Avoid the collapse/probe there, but
+    // still notice content that has grown beyond the current overlay.
+    const observedH = availableContentHeight(hostRect);
+    if (observedH > Math.max(measuredContentH, STATE.cssH) + 1) {
+      measuredContentH = observedH;
+    }
+  }
+  const cssH = Math.max(1, Math.ceil(measuredContentH || 0));
 
   const offsetLeft = Math.round(-hostRect.left);
   let resized = STATE.cssW !== cssW || STATE.cssH !== cssH || STATE.dpr !== dpr;
@@ -1612,6 +1680,7 @@ export function syncCanvasSize(): boolean {
 
 let syncPending = false;
 let redrawPending = false;
+let measureContentPending = false;
 
 function requestFrame(): void {
   if (STATE.syncRAF) return;
@@ -1621,12 +1690,14 @@ function requestFrame(): void {
     STATE.syncRAF = 0;
     const sync = syncPending;
     const draw = redrawPending;
+    const measureContent = measureContentPending;
     syncPending = false;
     redrawPending = false;
+    measureContentPending = false;
     let resized = false;
     if (sync) {
       ensureOverlay();
-      resized = syncCanvasSize();
+      resized = syncCanvasSize(measureContent);
       syncToolbarPosition();
     } else if (draw) {
       syncDgsWidgetsLayer();
@@ -1635,8 +1706,9 @@ function requestFrame(): void {
   });
 }
 
-export function requestSync(): void {
+export function requestSync(measureContent = false): void {
   syncPending = true;
+  if (measureContent) measureContentPending = true;
   requestFrame();
 }
 

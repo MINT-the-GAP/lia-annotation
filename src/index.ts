@@ -61,7 +61,7 @@ if (!IS_DUPLICATE) {
   setTimeout(requestSync, 250);
   setTimeout(requestSync, 700);
 
-  window.addEventListener('resize', function () { requestThemeSync(); requestSync(); });
+  window.addEventListener('resize', function () { requestThemeSync(); requestSync(true); });
   window.addEventListener('hashchange', function () {
     exitQuizPickingMode();
     clearMarkedRect();
@@ -71,13 +71,13 @@ if (!IS_DUPLICATE) {
     ensureSlide(getSlideKey());
     ensureOverlay();
     updateToolbar();
-    setTimeout(requestSync, 40);
-    setTimeout(requestSync, 180);
-    setTimeout(requestSync, 500);
+    setTimeout(function () { requestSync(true); }, 40);
+    setTimeout(function () { requestSync(true); }, 180);
+    setTimeout(function () { requestSync(true); }, 500);
   });
-  window.addEventListener('scroll', function () { requestSync(); }, true);
-  document.addEventListener('input', function () { requestSync(); }, true);
-  document.addEventListener('change', function () { requestSync(); }, true);
+  window.addEventListener('scroll', function () { requestSync(false); }, true);
+  document.addEventListener('input', function () { requestSync(true); }, true);
+  document.addEventListener('change', function () { requestSync(true); }, true);
 
   // Theme outputs must not retrigger their own observer. Compare external
   // inputs without discarding mutation batches: other templates may change
@@ -108,7 +108,7 @@ if (!IS_DUPLICATE) {
       applyThemeVars();
       updateToolbar();
       syncOverlayInteractivity();
-      requestSync();
+      requestSync(true);
       requestRedraw();
     });
   }
