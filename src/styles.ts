@@ -468,7 +468,7 @@ export const CSS = `
   .lia-annot-dgs-remove {
     position: absolute;
     top: -12px;
-    right: -12px;
+    left: -12px;
     z-index: 502;
     display: inline-flex;
     align-items: center;

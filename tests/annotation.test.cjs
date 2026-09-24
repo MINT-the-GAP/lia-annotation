@@ -611,7 +611,8 @@ test('DGS close button removes state and disposes the live coordinate board', as
   const boardBox = await board.boundingBox();
   const removeBox = await remove.boundingBox();
   assert.ok(removeBox.y < boardBox.y, 'close button sits outside the board at the top');
-  assert.ok(removeBox.x + removeBox.width / 2 >= boardBox.x + boardBox.width - 2, 'close button sits at the board right edge');
+  assert.ok(removeBox.x + removeBox.width / 2 <= boardBox.x + 2, 'close button sits at the board left edge');
+  assert.ok(removeBox.x + removeBox.width < boardBox.x + boardBox.width - 24, 'close button leaves the board resize corner clear');
 
   await page.evaluate(() => window.__LIA_ANNOTATION__.setReadOnly(true));
   assert.equal(await remove.isVisible(), false, 'close button is hidden in read-only mode');
