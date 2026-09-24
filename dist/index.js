@@ -539,13 +539,13 @@
   .lia-annot-dgs-frame {
     position: relative;
     display: block;
-    width: min(240px, 100%);
+    width: 100%;
     overflow: visible;
   }
 
   .lia-annot-dgs-board {
     position: relative;
-    width: 100%;
+    width: min(240px, 100%);
     height: 180px;
     background: transparent;
   }

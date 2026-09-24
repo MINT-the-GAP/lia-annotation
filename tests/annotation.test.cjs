@@ -604,12 +604,15 @@ test('DGS close button removes state and disposes the live coordinate board', as
   await settle(page, 200);
 
   const remove = page.locator('.lia-annot-dgs-remove');
+  const frame = page.locator('.lia-annot-dgs-frame');
   const board = page.locator('.lia-annot-dgs-board');
   assert.equal(await remove.count(), 1);
   assert.equal(await remove.evaluate(el => el.tagName), 'BUTTON');
   assert.equal(await remove.getAttribute('aria-label'), 'Remove coordinate system');
+  const frameBox = await frame.boundingBox();
   const boardBox = await board.boundingBox();
   const removeBox = await remove.boundingBox();
+  assert.ok(frameBox.width > boardBox.width + 100, 'the close-button frame leaves room to widen the board');
   assert.ok(removeBox.y < boardBox.y, 'close button sits outside the board at the top');
   assert.ok(removeBox.x + removeBox.width / 2 <= boardBox.x + 2, 'close button sits at the board left edge');
   assert.ok(removeBox.x + removeBox.width < boardBox.x + boardBox.width - 24, 'close button leaves the board resize corner clear');
