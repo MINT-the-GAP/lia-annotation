@@ -69,6 +69,11 @@ The toolbar appears on the left edge of the viewport in presentation mode.
 | Coord  | Place a coordinate system manually |
 | Eye    | Show or hide all annotations on the current slide |
 
+The pen follows the surface where a stroke starts. On an open
+`lia-canvas-ocr` drawing area, the annotation pen activates and writes into
+that canvas. Everywhere else, including over a coordinate system, it writes
+to the annotation layer.
+
 ## OCR integration
 
           --{{0}}--
@@ -84,6 +89,11 @@ If you use lia-canvas-ocr, keep this import in your header:
 
 When OCR text is inserted into a quiz field, a compact TeX preview is shown
 automatically (preview hides while the field is focused for editing).
+
+The OCR/solution-selection button follows the same routing rule: start its
+rectangle inside an open `lia-canvas-ocr` drawing area to use that canvas'
+native selection and submit the result to its associated quiz. A rectangle
+started elsewhere selects annotations as before.
 
 ## Sketch-to-DGS placement (experimental)
 

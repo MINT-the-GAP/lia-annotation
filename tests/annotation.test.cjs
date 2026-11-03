@@ -54,6 +54,49 @@ test('unchanged theme and toolbar calls preserve all nodes and emit no mutations
   assert.equal((await metrics(page)).mutations, 0, 'fallback theme probe is reused');
 });
 
+test('LiaScript modals and Classroom stay above the annotation toolbar', async t => {
+  const page = await usingPage(t);
+  const result = await page.evaluate(() => {
+    const toolbar = document.querySelector('.lia-annot-toolbar');
+    const panel = toolbar.querySelector('.lia-annot-panel');
+    const box = toolbar.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const toolbarAtPoint = () => document.elementFromPoint(x, y)?.closest('.lia-annot-toolbar') === toolbar;
+    const before = toolbarAtPoint();
+
+    const modal = document.createElement('lia-modal');
+    modal.className = 'lia-modal';
+    modal.style.cssText = 'display:block;position:fixed;inset:0;z-index:9000;pointer-events:auto';
+    modal.innerHTML = `
+      <div class='lia-modal__outer' style='position:absolute;inset:0;background:rgba(0,0,0,.9)'></div>
+      <div class='lia-modal__inner'><div class='lia-classroom'>Classroom</div></div>
+    `;
+    document.body.append(modal);
+    const top = document.elementFromPoint(x, y);
+    const classroomAbove = top?.closest('.lia-modal') === modal;
+    const values = {
+      before,
+      classroomAbove,
+      toolbarZ: getComputedStyle(toolbar).zIndex,
+      panelZ: getComputedStyle(panel).zIndex,
+      modalZ: getComputedStyle(modal).zIndex
+    };
+    modal.remove();
+    values.after = toolbarAtPoint();
+    return values;
+  });
+
+  assert.deepEqual(result, {
+    before: true,
+    classroomAbove: true,
+    toolbarZ: '8990',
+    panelZ: '1',
+    modalZ: '9000',
+    after: true
+  });
+});
+
 test('idle, inactive scrolling and redundant sync/redraw do not rebuild or repaint', async t => {
   const page = await usingPage(t);
   await assertQuiet(page, 1400); // Includes the OCR availability polling interval.
@@ -224,6 +267,166 @@ test('fixed-height LiaScript scroller keeps overflowed board space drawable', as
     await page.locator('.lia-annot-canvas').evaluate(el => el.getBoundingClientRect().height) <= 640,
     'the canvas shrinks again after the overflowed board space is removed'
   );
+});
+
+test('annotation pen and quiz selection delegate to a live canvas while coordinate boards stay annotatable', async t => {
+  const page = await usingPage(t, {
+    beforeBoot: () => {
+      window.__LIA_TEX_OCR__ = { recognize: async () => 'unused' };
+    }
+  });
+
+  await page.evaluate(() => {
+    const slide = document.querySelector('.lia-slide');
+    slide.style.position = 'relative';
+    slide.insertAdjacentHTML('beforeend', `
+      <span class='lia-draw-block'
+        style='position:absolute;left:30px;top:60px;width:320px;height:220px'>
+        <span class='lia-draw-wrap' style='position:relative;display:block;width:320px;height:180px'>
+          <button class='lia-color-btn' type='button' data-active='0' hidden></button>
+          <button class='lia-rect-btn' type='button' data-active='0' hidden></button>
+          <span class='lia-tool-menu' data-open='0' hidden>
+            <button type='button' data-act='close'>Close</button>
+          </span>
+          <canvas class='lia-draw' data-ready='1' width='320' height='180'
+            style='display:block;width:320px;height:180px;touch-action:none'></canvas>
+        </span>
+        <button class='native-submit' type='button' hidden
+          style='position:absolute;left:120px;top:188px;z-index:2'>Submit</button>
+      </span>
+      <div class='test-coordinate-board'
+        style='position:absolute;left:390px;top:60px;width:320px;height:180px;background:#eef'></div>
+    `);
+
+    const block = slide.querySelector('.lia-draw-block');
+    const wrap = block.querySelector('.lia-draw-wrap');
+    const canvas = wrap.querySelector('.lia-draw');
+    const pen = wrap.querySelector('.lia-color-btn');
+    const rect = wrap.querySelector('.lia-rect-btn');
+    const menu = wrap.querySelector('.lia-tool-menu');
+    const submit = block.querySelector('.native-submit');
+    const native = window.__nativeCanvas = {
+      tool: 'eraser',
+      downs: 0,
+      moves: 0,
+      ups: 0,
+      selections: 0,
+      penActivations: 0,
+      rectActivations: 0
+    };
+
+    const selectTool = next => {
+      native.tool = next;
+      pen.dataset.active = next === 'pen' ? '1' : '0';
+      rect.dataset.active = next === 'rect' ? '1' : '0';
+    };
+    pen.addEventListener('click', () => {
+      native.penActivations++;
+      selectTool('pen');
+      menu.dataset.open = '1';
+    });
+    rect.addEventListener('click', () => {
+      native.rectActivations++;
+      selectTool('rect');
+      menu.dataset.open = '1';
+    });
+    menu.querySelector('[data-act=close]').addEventListener('click', () => {
+      menu.dataset.open = '0';
+    });
+    canvas.addEventListener('pointerdown', event => {
+      native.downs++;
+      native.downTool = native.tool;
+      try { canvas.setPointerCapture(event.pointerId); } catch (_) { }
+    });
+    canvas.addEventListener('pointermove', event => {
+      if (event.buttons) native.moves++;
+    });
+    canvas.addEventListener('pointerup', event => {
+      native.ups++;
+      if (native.tool === 'rect') {
+        native.selections++;
+        submit.hidden = false;
+      }
+      try { canvas.releasePointerCapture(event.pointerId); } catch (_) { }
+    });
+    submit.addEventListener('click', () => {
+      const quiz = document.querySelector('#quiz');
+      quiz.value = 'canvas solution';
+      quiz.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const coordinate = slide.querySelector('.test-coordinate-board');
+    window.__coordinateDowns = 0;
+    coordinate.addEventListener('pointerdown', () => { window.__coordinateDowns++; });
+    window.__annotationTest.overlay.requestSync(true);
+  });
+  await settle(page, 180);
+
+  await clickTool(page, 'pen');
+  const nativeBox = await page.locator('.lia-draw').boundingBox();
+  await page.mouse.move(nativeBox.x + 30, nativeBox.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(nativeBox.x + 180, nativeBox.y + 100, { steps: 8 });
+  await page.mouse.up();
+  await settle(page);
+
+  assert.deepEqual(await page.evaluate(() => ({
+    tool: window.__nativeCanvas.downTool,
+    downs: window.__nativeCanvas.downs,
+    moves: window.__nativeCanvas.moves > 0,
+    ups: window.__nativeCanvas.ups,
+    penActivations: window.__nativeCanvas.penActivations,
+    menuOpen: document.querySelector('.lia-tool-menu').dataset.open,
+    annotationItems: window.__LIA_ANNOTATION__.getStore().slides['#1'].items.length
+  })), {
+    tool: 'pen',
+    downs: 1,
+    moves: true,
+    ups: 1,
+    penActivations: 1,
+    menuOpen: '0',
+    annotationItems: 0
+  });
+
+  await clickTool(page, 'ocr-transfer');
+  await page.mouse.move(nativeBox.x + 50, nativeBox.y + 35);
+  await page.mouse.down();
+  await page.mouse.move(nativeBox.x + 230, nativeBox.y + 135, { steps: 6 });
+  await page.mouse.up();
+  await settle(page);
+  assert.deepEqual(await page.evaluate(() => ({
+    tool: window.__nativeCanvas.downTool,
+    selections: window.__nativeCanvas.selections,
+    rectActivations: window.__nativeCanvas.rectActivations,
+    menuOpen: document.querySelector('.lia-tool-menu').dataset.open,
+    annotationRect: window.__annotationTest.overlay.getMarkedRect()
+  })), {
+    tool: 'rect',
+    selections: 1,
+    rectActivations: 1,
+    menuOpen: '0',
+    annotationRect: null
+  });
+  await page.locator('.native-submit').click();
+  assert.equal(await page.locator('#quiz').inputValue(), 'canvas solution');
+
+  await clickTool(page, 'pen');
+  const coordinateBox = await page.locator('.test-coordinate-board').boundingBox();
+  await page.mouse.move(coordinateBox.x + 30, coordinateBox.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(coordinateBox.x + 220, coordinateBox.y + 120, { steps: 8 });
+  await page.mouse.up();
+  await settle(page);
+
+  assert.deepEqual(await page.evaluate(() => ({
+    coordinateDowns: window.__coordinateDowns,
+    annotationItems: window.__LIA_ANNOTATION__.getStore().slides['#1'].items.length,
+    annotationPoints: window.__LIA_ANNOTATION__.getStore().slides['#1'].items[0]?.points.length || 0
+  })), {
+    coordinateDowns: 0,
+    annotationItems: 1,
+    annotationPoints: 9
+  });
 });
 
 test('drawing, erasing, sliders and undo/redo keep pixels and button state in sync', async t => {

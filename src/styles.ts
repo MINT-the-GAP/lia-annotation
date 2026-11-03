@@ -19,7 +19,8 @@ export const CSS = `
     left: 10px;
     top: 50%;
     transform: translateY(-50%);
-    z-index: 10030;
+    /* Stay above course content, but below LiaScript's modal/Classroom layer (9000). */
+    z-index: 8990;
     display: inline-flex;
     flex-direction: column;
     gap: 0;
@@ -152,7 +153,7 @@ export const CSS = `
     position: absolute;
     left: 46px;
     top: 0;
-    z-index: 10031;
+    z-index: 1;
     display: none;
     grid-template-columns: 1fr;
     gap: 12px;
@@ -367,6 +368,13 @@ export const CSS = `
     position: relative !important;
     overflow-x: clip !important;
     overflow-y: visible !important;
+  }
+
+  /* Pen/selection starts are routed from the real element below the visual
+     overlay. Keep touch gestures in drawing mode until that routing decision
+     has been made. */
+  .lia-annot-host[data-lia-annot-capture] {
+    touch-action: none !important;
   }
 
   .lia-annot-shell {

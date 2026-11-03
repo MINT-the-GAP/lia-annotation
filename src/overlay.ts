@@ -30,6 +30,7 @@ const DGS_WIDGET_H = 180;
 // Pinned quiz target: set via "Choose Quiz" button; overrides proximity search in api.ts.
 let _pinnedQuizTarget: Element | null = null;
 let _choosingQuiz = false;
+let _documentPointerRouterBound = false;
 
 export function getPinnedQuizTarget(): Element | null { return _pinnedQuizTarget; }
 export function clearPinnedQuizTarget(): void { _pinnedQuizTarget = null; }
@@ -1373,7 +1374,7 @@ export function bindCanvasEvents(): void {
     _draftRect = null;
   }
 
-  STATE.canvas.addEventListener('pointerdown', function (evt: PointerEvent) {
+  function handleAnnotationPointerDown(evt: PointerEvent): void {
     if (evt.pointerType === 'mouse' && evt.button !== 0) return;
     const p = rememberPointer(evt);
     if (_dgsPlacementMode) {
@@ -1422,7 +1423,93 @@ export function bindCanvasEvents(): void {
     try { STATE.canvas!.setPointerCapture(evt.pointerId); } catch (_) { }
     requestRedraw();
     updateToolbar();
-  }, true);
+  }
+
+  function embeddedDrawingCanvasAt(evt: PointerEvent): HTMLCanvasElement | null {
+    const path = typeof evt.composedPath === 'function' ? evt.composedPath() : [];
+    for (let i = 0; i < path.length; i++) {
+      const node = path[i];
+      if (node instanceof HTMLCanvasElement && node.matches('canvas.lia-draw[data-ready]')) return node;
+    }
+
+    const target = evt.target instanceof Element ? evt.target : null;
+    const owner = target?.closest('.lia-draw-wrap, .lia-draw-block');
+    const ownedCanvas = owner?.querySelector('canvas.lia-draw[data-ready]') as HTMLCanvasElement | null;
+    if (ownedCanvas) return ownedCanvas;
+
+    // composedPath is sufficient for lia-canvas-ocr. elementsFromPoint is a
+    // fallback for wrappers which retarget their pointer events.
+    let nodes: Element[] = [];
+    try { nodes = document.elementsFromPoint(evt.clientX, evt.clientY); } catch (_) { }
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node instanceof HTMLCanvasElement && node.matches('canvas.lia-draw[data-ready]')) return node;
+    }
+    return null;
+  }
+
+  function activateEmbeddedCanvasTool(canvas: HTMLCanvasElement, mode: 'pen' | 'rect'): boolean {
+    const wrap = canvas.closest('.lia-draw-wrap');
+    if (!wrap) return false;
+    const selector = mode === 'pen' ? '.lia-color-btn' : '.lia-rect-btn';
+    const button = wrap.querySelector(selector) as HTMLButtonElement | null;
+    if (!button) return false;
+    // Clicking an already active pen opens its settings in lia-canvas-ocr, so
+    // only change tools when necessary.
+    if (button.getAttribute('data-active') === '1') return true;
+    if (button.disabled) return false;
+    button.click();
+    // lia-canvas-ocr opens the newly selected tool's options on click. Routing
+    // a stroke should switch the tool without covering the writing area.
+    const menu = wrap.querySelector('.lia-tool-menu');
+    if (menu?.getAttribute('data-open') === '1') {
+      const close = menu.querySelector('button[data-act=close]') as HTMLButtonElement | null;
+      if (close) close.click();
+    }
+    return button.getAttribute('data-active') === '1';
+  }
+
+  function routeDelegatedPointerDown(evt: PointerEvent): void {
+    if (!STATE.canvas || !STATE.shell || !STATE.host) return;
+    if (!STORE.ui.visible || isReadOnly() || _choosingQuiz || _dgsPlacementMode) return;
+    if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+
+    const mode = effectiveMode();
+    if (mode !== 'pen' && mode !== 'rect') return;
+
+    const target = evt.target as Element | null;
+    // Directly dispatched events and the non-delegated modes continue through
+    // the canvas listeners below. Overlay controls must remain clickable.
+    if (target === STATE.canvas || target?.closest('.lia-annot-shell, .lia-annot-toolbar, .lia-annot-panel')) return;
+    if (!target) return;
+
+    const bounds = STATE.canvas.getBoundingClientRect();
+    if (evt.clientX < bounds.left || evt.clientX > bounds.right ||
+        evt.clientY < bounds.top || evt.clientY > bounds.bottom) return;
+
+    const embedded = embeddedDrawingCanvasAt(evt);
+    if (embedded && STATE.host.contains(embedded)) {
+      if (activateEmbeddedCanvasTool(embedded, mode)) {
+        if (mode === 'rect' && (_markedRect || _draftRect)) clearMarkedRect();
+        // Do not cancel or clone the event: lia-canvas-ocr receives the original
+        // trusted pointer stream and owns capture for the complete gesture.
+        return;
+      }
+    }
+
+    // The overlay canvas is deliberately transparent to hit testing in pen
+    // and rectangle mode. Start an annotation here, then capture the remaining
+    // native pointer stream on it. This keeps coordinate boards drawable while
+    // preventing their own interaction from handling the same gesture.
+    handleAnnotationPointerDown(evt);
+    evt.stopImmediatePropagation();
+  }
+
+  STATE.canvas.addEventListener('pointerdown', handleAnnotationPointerDown, true);
+  if (!_documentPointerRouterBound) {
+    _documentPointerRouterBound = true;
+    window.addEventListener('pointerdown', routeDelegatedPointerDown, true);
+  }
 
   STATE.canvas.addEventListener('pointermove', function (evt: PointerEvent) {
     const p = rememberPointer(evt);
@@ -1689,6 +1776,7 @@ export function syncOverlayInteractivity(): void {
     const active = shell === STATE.shell;
     const shellMode = active ? (placeMode ? 'place' : mode) : 'cursor';
     const interactive = active && visible && !_choosingQuiz && shellMode !== 'cursor';
+    const delegated = interactive && (shellMode === 'pen' || shellMode === 'rect');
     // Write the final mode directly; resetting to cursor first causes two
     // mutations on every sync while drawing or erasing.
     setAttribute(shell, 'data-mode', shellMode);
@@ -1696,9 +1784,14 @@ export function syncOverlayInteractivity(): void {
     setStyle(shell, 'pointer-events', 'none');
     setStyle(shell, 'display', visible ? '' : 'none');
     if (canvas) {
-      setStyle(canvas, 'pointer-events', interactive ? 'auto' : 'none');
-      setStyle(canvas, 'touch-action', interactive ? 'none' : 'auto');
+      setStyle(canvas, 'pointer-events', interactive && !delegated ? 'auto' : 'none');
+      setStyle(canvas, 'touch-action', interactive && !delegated ? 'none' : 'auto');
       setStyle(canvas, 'cursor', interactive ? 'crosshair' : 'default');
+    }
+    const host = shell.parentElement;
+    if (host) {
+      if (delegated) setAttribute(host, 'data-lia-annot-capture', '1');
+      else if (host.hasAttribute('data-lia-annot-capture')) host.removeAttribute('data-lia-annot-capture');
     }
   }
   syncDgsRemoveButtons();
