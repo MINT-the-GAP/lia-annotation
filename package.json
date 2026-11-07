@@ -5,7 +5,8 @@
   "scripts": {
     "build": "parcel build src/index.ts --dist-dir dist --no-scope-hoist",
     "test": "node --test tests/*.test.cjs",
-    "test:integration": "node --test tests/integration.test.cjs"
+    "test:integration": "node --test tests/integration.test.cjs",
+    "test:toolbar-integration": "node --test tests/toolbar-hosting.integration.test.cjs"
   },
   "devDependencies": {
     "parcel": "^2.13.3",

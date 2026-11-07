@@ -172,6 +172,33 @@ window.__LIA_ANNOTATION__.clearSlide();
 window.__LIA_ANNOTATION__.clearAllSlides();
 ```
 
+Other templates can place an existing control in the annotation toolbar without
+cloning it. The annotation plugin preserves the element's event listeners and
+restores its original DOM position when it is unregistered.
+
+```js
+const button = document.querySelector('#my-template-button');
+
+function attachToAnnotationToolbar(api) {
+  if (button) api.registerToolbarControl('my-template', button, { order: 100 });
+}
+
+if (window.__LIA_ANNOTATION__) {
+  attachToAnnotationToolbar(window.__LIA_ANNOTATION__);
+} else {
+  window.addEventListener('lia-annotation-toolbar-ready', event => {
+    attachToAnnotationToolbar(event.detail);
+  }, { once: true });
+}
+```
+
+Templates should keep their normal standalone placement as a fallback when the
+annotation API is unavailable. They can call
+`unregisterToolbarControl('my-template')` to restore the recorded placement and
+use `hasToolbarControl('my-template')` to inspect the registry. The ready event
+only announces the generic hosting API; individual template integrations must
+opt in explicitly.
+
 ## Implementation
 
           --{{0}}--

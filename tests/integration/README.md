@@ -1,5 +1,58 @@
 # Template integration regression
 
+## Local real-bundle toolbar hosting
+
+Run the cross-repository toolbar acceptance test with:
+
+~~~sh
+npm run test:toolbar-integration
+~~~
+
+This test is separate from the commit-pinned coordinate/performance regression
+described below. It uses the current, locally built dist/index.js files for
+lia-annotation, lia-marker and lia-board-mode. It does not use API doubles,
+copy peer bundles into this repository or access the network. The explicit run
+prints the resolved absolute paths and SHA-256 checksums of all three inputs.
+
+The default bundle paths, relative to this repository, are:
+
+~~~text
+dist/index.js
+../../Textmarker/lia-marker/dist/index.js
+../../Tafelmodus/lia-board-mode/dist/index.js
+~~~
+
+Override them with absolute paths when the repositories have a different
+layout:
+
+~~~text
+LIA_ANNOTATION_LOCAL_BUNDLE
+LIA_MARKER_LOCAL_BUNDLE
+LIA_BOARD_MODE_LOCAL_BUNDLE
+~~~
+
+An explicit npm run test:toolbar-integration fails with all missing or
+unreadable paths listed. The ordinary npm test run skips this one local
+cross-repository case with a reason when the sibling checkouts are absent.
+
+Fresh browser contexts exercise all six import orders:
+
+~~~text
+annotation -> marker -> board-mode
+annotation -> board-mode -> marker
+marker -> annotation -> board-mode
+marker -> board-mode -> annotation
+board-mode -> annotation -> marker
+board-mode -> marker -> annotation
+~~~
+
+The test verifies original element identity, the stable marker-before-board
+order, hosted 32 px layout, panels outside the annotation toolbar, real
+pointer/keyboard/slider behavior, read-only isolation, public toolbar rebuild,
+both standalone load orders and two consecutive idle windows without
+registration, DOM-mutation or animation-frame loops. Its dedicated fixture is
+LiaScript-like but is not the full Elm course viewer.
+
 Run `npm run test:integration` with Node and an installed Chrome/Chromium.
 The first explicit run downloads the three commit-pinned bundles in
 [assets.json](assets.json), verifies their SHA256 hashes and caches them in the

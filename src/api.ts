@@ -5,7 +5,7 @@
 import type { Mode, Point, PathItem, SlideData, LiaTexOcrEngine } from './types';
 import { STORE, STATE, ROOT, clamp, copyJson, getSlideKey, ensureSlide, currentSlide, isReadOnly } from './store';
 import { ensureOverlay, syncOverlayInteractivity, requestSync, requestRedraw, getMarkedRect, getVisibleMainHost, getPinnedQuizTarget, startDgsPlacementMode } from './overlay';
-import { updateToolbar } from './ui';
+import { updateToolbar, registerToolbarControl, unregisterToolbarControl, hasToolbarControl } from './ui';
 
 // ----- Undo / Redo / Clear -----
 
@@ -976,7 +976,7 @@ export function setReadOnly(v: boolean | null): void {
 // ----- Register global API -----
 
 export function registerGlobalApi(): void {
-  window.__LIA_ANNOTATION__ = {
+  const api = window.__LIA_ANNOTATION__ = {
     exportState,
     exportFreezeState,
     importState,
@@ -992,10 +992,15 @@ export function registerGlobalApi(): void {
     submitOcrTextToNearestQuiz,
     transferToNearestQuiz,
     startDgsPlacementMode,
+    registerToolbarControl,
+    unregisterToolbarControl,
+    hasToolbarControl,
     refresh: function () { ensureOverlay(); requestSync(); updateToolbar(); },
     getStore: function () { return copyJson(STORE); },
     getSlideKey: function () { return getSlideKey(); }
   };
+
+  window.dispatchEvent(new CustomEvent('lia-annotation-toolbar-ready', { detail: api }));
 
   window.__LIA_ANNOTATION_EXPORT__ = function () { return exportState(); };
   window.__LIA_ANNOTATION_IMPORT__ = function (payload, opts) { return importState(payload, opts); };

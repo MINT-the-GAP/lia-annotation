@@ -10,7 +10,12 @@ test('shipped dist bundle supports drawing, undo, themes and a quiet public refr
     assert.deepEqual(page.testErrors, []);
     await page.close();
   });
-  assert.equal(await page.evaluate(() => typeof window.__LIA_ANNOTATION__.getStore), 'function');
+  assert.deepEqual(await page.evaluate(() => ({
+    getStore: typeof window.__LIA_ANNOTATION__.getStore,
+    register: typeof window.__LIA_ANNOTATION__.registerToolbarControl,
+    unregister: typeof window.__LIA_ANNOTATION__.unregisterToolbarControl,
+    has: typeof window.__LIA_ANNOTATION__.hasToolbarControl
+  })), { getStore: 'function', register: 'function', unregister: 'function', has: 'function' });
   await page.evaluate(() => { for (let i = 0; i < 10; i++) window.__LIA_ANNOTATION__.refresh(); });
   await settle(page);
   assert.equal((await metrics(page)).mutations, 0);

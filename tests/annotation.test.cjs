@@ -27,6 +27,147 @@ async function assertQuiet(page, ms = 160) {
   });
 }
 
+test('external toolbar controls register, sort, survive rebuilds and restore without stealing events', async t => {
+  const page = await usingPage(t, {
+    beforeBoot: () => {
+      window.__annotationReadyCount = 0;
+      window.addEventListener('lia-annotation-toolbar-ready', event => {
+        window.__annotationReadyCount++;
+        window.__annotationReadyDetail = event.detail;
+      });
+    }
+  });
+
+  assert.deepEqual(await page.evaluate(() => ({
+    register: typeof window.__LIA_ANNOTATION__.registerToolbarControl,
+    unregister: typeof window.__LIA_ANNOTATION__.unregisterToolbarControl,
+    has: typeof window.__LIA_ANNOTATION__.hasToolbarControl,
+    readyCount: window.__annotationReadyCount,
+    readyDetailMatches: window.__annotationReadyDetail === window.__LIA_ANNOTATION__,
+    emptyChildren: document.querySelector('.lia-annot-external-actions').children.length,
+    emptyDisplay: getComputedStyle(document.querySelector('.lia-annot-external-actions')).display
+  })), {
+    register: 'function',
+    unregister: 'function',
+    has: 'function',
+    readyCount: 1,
+    readyDetailMatches: true,
+    emptyChildren: 0,
+    emptyDisplay: 'none'
+  });
+
+  const registered = await page.evaluate(() => {
+    const origin = document.createElement('div');
+    origin.id = 'external-origin';
+    const a = document.createElement('button');
+    const b = document.createElement('button');
+    const z = document.createElement('button');
+    const anchor = document.createElement('span');
+    a.id = 'external-a';
+    a.className = 'lia-annot-btn';
+    a.dataset.act = 'pen';
+    b.id = 'external-b';
+    z.id = 'external-z';
+    anchor.id = 'external-anchor';
+    origin.append(a, b, z, anchor);
+    document.body.append(origin);
+    window.__externalClicks = 0;
+    a.addEventListener('click', () => window.__externalClicks++);
+
+    const api = window.__LIA_ANNOTATION__;
+    return {
+      a: api.registerToolbarControl('a-control', a, { order: 10 }),
+      b: api.registerToolbarControl('b-control', b, { order: 10 }),
+      z: api.registerToolbarControl('z-control', z, { order: 20 }),
+      duplicateId: api.registerToolbarControl('a-control', document.createElement('button')),
+      duplicateElement: api.registerToolbarControl('other-control', a),
+      repeated: api.registerToolbarControl('a-control', a)
+    };
+  });
+  assert.deepEqual(registered, {
+    a: true, b: true, z: true, duplicateId: false, duplicateElement: false, repeated: true
+  });
+
+  assert.deepEqual(await page.evaluate(() => {
+    const api = window.__LIA_ANNOTATION__;
+    const host = document.querySelector('.lia-annot-external-actions');
+    document.querySelector('#external-a').click();
+    api.setReadOnly(true);
+    return {
+      order: Array.from(host.children, element => element.getAttribute('data-lia-annotation-control')),
+      clicks: window.__externalClicks,
+      hosted: document.querySelector('#external-a').getAttribute('data-lia-annotation-hosted'),
+      classed: document.querySelector('#external-a').classList.contains('lia-annot-external-control'),
+      disabled: document.querySelector('#external-a').disabled,
+      allRegistered: ['a-control', 'b-control', 'z-control'].every(id => api.hasToolbarControl(id))
+    };
+  }), {
+    order: ['a-control', 'b-control', 'z-control'],
+    clicks: 1,
+    hosted: 'true',
+    classed: true,
+    disabled: false,
+    allRegistered: true
+  });
+
+  await reset(page);
+  await page.evaluate(() => {
+    const api = window.__LIA_ANNOTATION__;
+    const a = document.querySelector('#external-a');
+    for (let i = 0; i < 10; i++) {
+      api.registerToolbarControl('a-control', a, { order: 10 });
+      window.__annotationTest.ui.updateToolbar();
+    }
+  });
+  await settle(page);
+  assert.equal((await metrics(page)).toolbarMutations, 0);
+
+  assert.deepEqual(await page.evaluate(() => {
+    const oldToolbar = document.querySelector('.lia-annot-toolbar');
+    oldToolbar.remove();
+    const newToolbar = window.__annotationTest.ui.ensureToolbar();
+    return {
+      replaced: oldToolbar !== newToolbar,
+      controls: Array.from(newToolbar.querySelector('.lia-annot-external-actions').children, element => element.id),
+      aConnected: document.querySelector('#external-a').isConnected
+    };
+  }), {
+    replaced: true,
+    controls: ['external-a', 'external-b', 'external-z'],
+    aConnected: true
+  });
+
+  assert.deepEqual(await page.evaluate(() => {
+    const api = window.__LIA_ANNOTATION__;
+    const results = [
+      api.unregisterToolbarControl('a-control'),
+      api.unregisterToolbarControl('b-control'),
+      api.unregisterToolbarControl('z-control'),
+      api.unregisterToolbarControl('missing-control')
+    ];
+    const origin = document.querySelector('#external-origin');
+    const host = document.querySelector('.lia-annot-external-actions');
+    return {
+      results,
+      restored: Array.from(origin.children, element => element.id),
+      attributesRemoved: !origin.querySelector('#external-a').hasAttribute('data-lia-annotation-hosted') &&
+        !origin.querySelector('#external-a').hasAttribute('data-lia-annotation-control'),
+      classRemoved: !origin.querySelector('#external-a').classList.contains('lia-annot-external-control'),
+      hostChildren: host.children.length,
+      hostDisplay: getComputedStyle(host).display,
+      noneRegistered: ['a-control', 'b-control', 'z-control'].every(id => !api.hasToolbarControl(id))
+    };
+  }), {
+    results: [true, true, true, false],
+    restored: ['external-a', 'external-b', 'external-z', 'external-anchor'],
+    attributesRemoved: true,
+    classRemoved: true,
+    hostChildren: 0,
+    hostDisplay: 'none',
+    noneRegistered: true
+  });
+});
+
 test('unchanged theme and toolbar calls preserve all nodes and emit no mutations', async t => {
   const page = await usingPage(t);
   await page.evaluate(() => {

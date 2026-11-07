@@ -8,30 +8,39 @@ export interface LiaTexOcrEngine {
   setModel?: (model: string) => Promise<void> | void;
 }
 
+export interface ToolbarControlOptions {
+  order?: number;
+}
+
+export interface LiaAnnotationApi {
+  exportState: () => unknown;
+  exportFreezeState: () => unknown;
+  importState: (payload: unknown, opts?: { replace?: boolean }) => boolean;
+  importFreezeState: (payload: unknown, opts?: { replace?: boolean }) => boolean;
+  hasFreezeData: () => boolean;
+  setVisible: (v: boolean) => void;
+  toggleVisible: () => void;
+  setReadOnly: (v: boolean | null) => void;
+  clearSlide: () => void;
+  clearAllSlides: () => void;
+  isOcrAvailable: () => boolean;
+  recognizeLatestAnnotationText: () => Promise<string | null>;
+  submitOcrTextToNearestQuiz: (text: string) => boolean;
+  transferToNearestQuiz: () => Promise<boolean>;
+  startDgsPlacementMode: () => void;
+  registerToolbarControl: (id: string, element: HTMLElement, options?: ToolbarControlOptions) => boolean;
+  unregisterToolbarControl: (id: string) => boolean;
+  hasToolbarControl: (id: string) => boolean;
+  refresh: () => void;
+  getStore: () => unknown;
+  getSlideKey: () => string;
+}
+
 // ----- Global declarations -----
 
 declare global {
   interface Window {
-    __LIA_ANNOTATION__: {
-      exportState: () => unknown;
-      exportFreezeState: () => unknown;
-      importState: (payload: unknown, opts?: { replace?: boolean }) => boolean;
-      importFreezeState: (payload: unknown, opts?: { replace?: boolean }) => boolean;
-      hasFreezeData: () => boolean;
-      setVisible: (v: boolean) => void;
-      toggleVisible: () => void;
-      setReadOnly: (v: boolean | null) => void;
-      clearSlide: () => void;
-      clearAllSlides: () => void;
-      isOcrAvailable: () => boolean;
-      recognizeLatestAnnotationText: () => Promise<string | null>;
-      submitOcrTextToNearestQuiz: (text: string) => boolean;
-      transferToNearestQuiz: () => Promise<boolean>;
-      startDgsPlacementMode: () => void;
-      refresh: () => void;
-      getStore: () => unknown;
-      getSlideKey: () => string;
-    };
+    __LIA_ANNOTATION__: LiaAnnotationApi;
     __LIA_TEX_OCR__?: LiaTexOcrEngine;
     __LIA_CANVAS_OCR__?: {
       ocr?: LiaTexOcrEngine;
@@ -42,6 +51,10 @@ declare global {
     __LIA_ANNOTATION_FREEZE_EXPORT__: () => unknown;
     __LIA_ANNOTATION_FREEZE_IMPORT__: (payload: unknown, opts?: { replace?: boolean }) => boolean;
     __LIA_ANNOTATION_FREEZE_HAS_DATA__: () => boolean;
+  }
+
+  interface WindowEventMap {
+    'lia-annotation-toolbar-ready': CustomEvent<LiaAnnotationApi>;
   }
 
   interface HTMLCanvasElement {

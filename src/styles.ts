@@ -42,6 +42,34 @@ export const CSS = `
     align-items: center;
   }
 
+  .lia-annot-external-actions {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+    width: 32px;
+    margin-top: 6px;
+    padding-top: 6px;
+    box-sizing: content-box;
+    border-top: 1px solid var(--lia-annot-border);
+  }
+
+  .lia-annot-external-actions:empty {
+    display: none;
+  }
+
+  .lia-annot-external-control {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 32px;
+    max-height: 32px;
+    margin: 0;
+    flex: 0 0 32px;
+    box-sizing: border-box;
+  }
+
   /* ---- Toolbar buttons ---- */
 
   .lia-annot-btn {

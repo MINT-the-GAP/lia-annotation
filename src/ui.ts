@@ -4,6 +4,7 @@
 import { STORE, STATE, clamp, parseRgbNoRegex, luminance, getViewportWidth, isReadOnly, effectiveMode, currentSlide } from './store';
 import { CSS } from './styles';
 import { setAttribute as setAttributeIfChanged, setStyle as setStyleIfChanged, setText as setTextIfChanged } from './dom';
+import type { ToolbarControlOptions } from './types';
 
 function setDisabledIfChanged(el: HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement, value: boolean): void {
   if (el.disabled !== value) el.disabled = value;
@@ -565,6 +566,123 @@ function updateOcrPanelPreview(panel: HTMLElement | null): void {
 
 // ----- Toolbar -----
 
+interface ExternalToolbarControl {
+  id: string;
+  element: HTMLElement;
+  order: number;
+  originalParent: Node | null;
+  originalNextSibling: ChildNode | null;
+  originalPlaceholder: Comment | null;
+  hadExternalClass: boolean;
+  originalControlAttribute: string | null;
+  originalHostedAttribute: string | null;
+}
+
+const externalToolbarControls = new Map<string, ExternalToolbarControl>();
+
+function toolbarControlHost(bar: HTMLElement | null = STATE.toolbar): HTMLElement | null {
+  return bar?.querySelector('.lia-annot-external-actions') as HTMLElement | null;
+}
+
+function compareToolbarControls(a: ExternalToolbarControl, b: ExternalToolbarControl): number {
+  return (a.order - b.order) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+function syncExternalToolbarControls(bar: HTMLElement): void {
+  const host = toolbarControlHost(bar);
+  if (!host) return;
+
+  const controls = Array.from(externalToolbarControls.values()).sort(compareToolbarControls);
+  controls.forEach(function (control, index) {
+    const current = host.children[index] || null;
+    if (current !== control.element) host.insertBefore(control.element, current);
+  });
+}
+
+function restoreAttribute(element: HTMLElement, name: string, value: string | null): void {
+  if (value === null) element.removeAttribute(name);
+  else element.setAttribute(name, value);
+}
+
+export function registerToolbarControl(
+  id: string,
+  element: HTMLElement,
+  options: ToolbarControlOptions = {}
+): boolean {
+  const normalizedId = String(id || '').trim();
+  if (!normalizedId || !(element instanceof HTMLElement) || element.ownerDocument !== document) return false;
+  if (element.classList.contains('lia-annot-toolbar') || element.contains(STATE.toolbar)) return false;
+
+  const existing = externalToolbarControls.get(normalizedId);
+  if (existing && existing.element !== element) return false;
+  for (const control of externalToolbarControls.values()) {
+    if (control.id !== normalizedId && control.element === element) return false;
+  }
+
+  const rawOrder = Number(options.order ?? existing?.order ?? 0);
+  const order = Number.isFinite(rawOrder) ? rawOrder : 0;
+  if (existing) {
+    if (existing.order !== order) existing.order = order;
+  } else {
+    const originalParent = element.parentNode;
+    const originalPlaceholder = originalParent
+      ? document.createComment('lia-annotation-control:' + normalizedId)
+      : null;
+    if (originalParent && originalPlaceholder) originalParent.insertBefore(originalPlaceholder, element);
+    externalToolbarControls.set(normalizedId, {
+      id: normalizedId,
+      element,
+      order,
+      originalParent,
+      originalNextSibling: element.nextSibling,
+      originalPlaceholder,
+      hadExternalClass: element.classList.contains('lia-annot-external-control'),
+      originalControlAttribute: element.getAttribute('data-lia-annotation-control'),
+      originalHostedAttribute: element.getAttribute('data-lia-annotation-hosted')
+    });
+  }
+
+  if (!element.classList.contains('lia-annot-external-control')) element.classList.add('lia-annot-external-control');
+  setAttributeIfChanged(element, 'data-lia-annotation-control', normalizedId);
+  setAttributeIfChanged(element, 'data-lia-annotation-hosted', 'true');
+  syncExternalToolbarControls(ensureToolbar());
+  return true;
+}
+
+export function unregisterToolbarControl(id: string): boolean {
+  const normalizedId = String(id || '').trim();
+  const control = externalToolbarControls.get(normalizedId);
+  if (!control) return false;
+  externalToolbarControls.delete(normalizedId);
+
+  const { element } = control;
+  element.classList.toggle('lia-annot-external-control', control.hadExternalClass);
+  restoreAttribute(element, 'data-lia-annotation-control', control.originalControlAttribute);
+  restoreAttribute(element, 'data-lia-annotation-hosted', control.originalHostedAttribute);
+
+  if (control.originalPlaceholder?.parentNode?.isConnected) {
+    control.originalPlaceholder.parentNode.replaceChild(element, control.originalPlaceholder);
+  } else if (control.originalParent?.isConnected) {
+    const anchor = control.originalNextSibling?.parentNode === control.originalParent
+      ? control.originalNextSibling
+      : null;
+    if (element.parentNode !== control.originalParent || element.nextSibling !== anchor) {
+      control.originalParent.insertBefore(element, anchor);
+    }
+  } else if (element.parentElement?.classList.contains('lia-annot-external-actions')) {
+    element.remove();
+  }
+  control.originalPlaceholder?.remove();
+
+  const bar = STATE.toolbar;
+  if (bar?.isConnected) syncExternalToolbarControls(bar);
+  return true;
+}
+
+export function hasToolbarControl(id: string): boolean {
+  return externalToolbarControls.has(String(id || '').trim());
+}
+
 // Imported lazily to avoid circular dependency: overlay/api call updateToolbar,
 // updateToolbar calls ensureOverlay indirectly via ensureToolbar only for the element.
 // The actual circular calls (requestRedraw, syncOverlayInteractivity, etc.) are
@@ -591,7 +709,10 @@ export function setToolbarCallbacks(cb: typeof _callbacks): void {
 }
 
 export function ensureToolbar(): HTMLElement {
-  if (STATE.toolbar && STATE.toolbar.isConnected) return STATE.toolbar;
+  if (STATE.toolbar && STATE.toolbar.isConnected) {
+    syncExternalToolbarControls(STATE.toolbar);
+    return STATE.toolbar;
+  }
 
   const bar = document.createElement('div');
   bar.className = 'lia-annot-toolbar';
@@ -612,14 +733,24 @@ export function ensureToolbar(): HTMLElement {
   `;
 
   const eyeButton = bar.querySelector('[data-act="toggle"]') as HTMLElement;
+  const externalActions = document.createElement('div');
+  externalActions.className = 'lia-annot-external-actions';
+  externalActions.setAttribute('role', 'group');
+  externalActions.setAttribute('aria-label', 'Template tools');
+  bar.querySelector('.lia-annot-actions')?.appendChild(externalActions);
   eyeStates.set(eyeButton, true);
 
   (document.body || document.documentElement).appendChild(bar);
+  syncExternalToolbarControls(bar);
 
   bar.addEventListener('click', function (e) {
     const target = e.target as Element | null;
-    const btn = target && target.closest ? target.closest('button[data-act]') as HTMLElement | null : null;
-    const colorBtn = target && target.closest ? target.closest('button[data-color]') as HTMLElement | null : null;
+    const btn = target && target.closest
+      ? target.closest('.lia-annot-actions > .lia-annot-btn[data-act], .lia-annot-panel button[data-act]') as HTMLElement | null
+      : null;
+    const colorBtn = target && target.closest
+      ? target.closest('.lia-annot-panel .lia-annot-color-item[data-color]') as HTMLElement | null
+      : null;
 
     if (colorBtn) {
       e.preventDefault();
@@ -730,6 +861,7 @@ export function ensureToolbar(): HTMLElement {
   bar.addEventListener('input', function (e) {
     const t = e.target as HTMLElement;
     if (!(t instanceof HTMLElement)) return;
+    if (!t.closest('.lia-annot-panel')) return;
     const act = String(t.getAttribute('data-act') || '');
     if (isReadOnly()) return;
 
@@ -800,7 +932,7 @@ export function updateToolbar(): void {
   const note = panel ? panel.querySelector('[data-k="note"]') : null;
   if (note) setTextIfChanged(note, ro ? t(lang, 'readOnlyNote') : '');
 
-  const btns = bar.querySelectorAll('.lia-annot-btn[data-act]');
+  const btns = bar.querySelectorAll('.lia-annot-actions > .lia-annot-btn[data-act]');
   const ocrAvailable = !!_callbacks?.isOcrAvailable && _callbacks.isOcrAvailable();
   if (!ocrAvailable && STORE.ui.mode === 'rect') {
     STORE.ui.mode = 'cursor';

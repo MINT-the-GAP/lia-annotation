@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" class="lia-light" data-lia-mode="presentation">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Local annotation toolbar hosting integration</title>
+<style>
+:root{--color-background:#fff;--color-text:#222;--color-highlight:#386cb0}
+html,body{margin:0;min-height:100%;background:var(--color-background);color:var(--color-text);font:18px/1.45 Arial,sans-serif}
+.lia-canvas{min-height:1300px}
+#lia-toolbar-nav{position:fixed;inset:0 0 auto;z-index:30;height:56px;background:#f5f5f5;border-bottom:1px solid #bbb}
+.lia-header__left{position:absolute;left:80px;top:8px;display:flex;align-items:center;min-height:40px}
+#lia-btn-toc{box-sizing:border-box;flex:none;width:40px;height:40px;padding:0}
+.lia-slide{position:relative;min-height:1100px}
+.lia-slide__container{position:relative}
+main.lia-slide__content{box-sizing:border-box;width:820px;min-height:900px;margin:96px 100px;padding:24px;border:1px solid #ddd}
+#outside-target{margin-top:160px;padding:24px;background:#eee}
+</style>
+<script>
+try {
+  localStorage.setItem('settings', JSON.stringify({ mode: 'presentation' }));
+  localStorage.removeItem('lia-tff-font-px-v2');
+} catch (_) {}
+</script>
+</head>
+<body>
+<div class="lia-canvas lia-mode--presentation">
+  <header id="lia-toolbar-nav" class="lia-header">
+    <div class="lia-header__left">
+      <button id="lia-btn-toc" type="button" aria-label="Table of contents">TOC</button>
+    </div>
+  </header>
+  <section class="lia-slide" data-slide="0">
+    <div class="lia-slide__container">
+      <main class="lia-slide__content">
+        <h1>Toolbar hosting integration</h1>
+        <p id="course-text">Selectable course text for the real marker and board-mode bundles.</p>
+        <label>Answer <input class="lia-input" type="text"></label>
+        <div id="outside-target">Outside click target</div>
+      </main>
+    </div>
+  </section>
+</div>
+</body>
+</html>
