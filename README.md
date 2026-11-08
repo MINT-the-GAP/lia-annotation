@@ -175,8 +175,15 @@ window.__LIA_ANNOTATION__.clearAllSlides();
 Other templates can place an existing control in the annotation toolbar without
 cloning it. The annotation plugin preserves the element's event listeners and
 restores its original DOM position when it is unregistered. Hosted controls are
-sorted by their numeric `order` and appear after the native
+sorted by their numeric `order`. Generic controls appear after the native
 show/hide-annotations button.
+
+The established integration IDs have dedicated positions so the complete
+toolbar keeps its intended workflow order: `lia-marker` is placed between Pen
+and Eraser, while `lia-board-mode` is placed between Redo and the coordinate
+tool. With both templates present, the visible order is Cursor, Pen, Marker,
+Eraser, Undo, Redo, Font size, Coordinates and Show/hide annotations. The
+optional OCR action remains between Coordinates and Show/hide when available.
 
 ```js
 const button = document.querySelector('#my-template-button');

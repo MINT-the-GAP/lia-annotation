@@ -578,10 +578,23 @@ interface ExternalToolbarControl {
   originalHostedAttribute: string | null;
 }
 
+type ExternalToolbarSlot = 'marker' | 'board' | 'fallback';
+
 const externalToolbarControls = new Map<string, ExternalToolbarControl>();
 
-function toolbarControlHost(bar: HTMLElement | null = STATE.toolbar): HTMLElement | null {
-  return bar?.querySelector('.lia-annot-external-actions') as HTMLElement | null;
+function toolbarControlSlot(id: string): ExternalToolbarSlot {
+  if (id === 'lia-marker') return 'marker';
+  if (id === 'lia-board-mode') return 'board';
+  return 'fallback';
+}
+
+function toolbarControlHost(
+  slot: ExternalToolbarSlot,
+  bar: HTMLElement | null = STATE.toolbar
+): HTMLElement | null {
+  return bar?.querySelector(
+    `.lia-annot-external-slot[data-lia-annotation-slot="${slot}"]`
+  ) as HTMLElement | null;
 }
 
 function compareToolbarControls(a: ExternalToolbarControl, b: ExternalToolbarControl): number {
@@ -589,11 +602,17 @@ function compareToolbarControls(a: ExternalToolbarControl, b: ExternalToolbarCon
 }
 
 function syncExternalToolbarControls(bar: HTMLElement): void {
-  const host = toolbarControlHost(bar);
-  if (!host) return;
-
   const controls = Array.from(externalToolbarControls.values()).sort(compareToolbarControls);
-  controls.forEach(function (control, index) {
+  const slotIndexes: Record<ExternalToolbarSlot, number> = {
+    marker: 0,
+    board: 0,
+    fallback: 0
+  };
+  controls.forEach(function (control) {
+    const slot = toolbarControlSlot(control.id);
+    const host = toolbarControlHost(slot, bar);
+    if (!host) return;
+    const index = slotIndexes[slot]++;
     const current = host.children[index] || null;
     if (current !== control.element) host.insertBefore(control.element, current);
   });
@@ -669,7 +688,7 @@ export function unregisterToolbarControl(id: string): boolean {
     if (element.parentNode !== control.originalParent || element.nextSibling !== anchor) {
       control.originalParent.insertBefore(element, anchor);
     }
-  } else if (element.parentElement?.classList.contains('lia-annot-external-actions')) {
+  } else if (element.parentElement?.classList.contains('lia-annot-external-slot')) {
     element.remove();
   }
   control.originalPlaceholder?.remove();
@@ -732,12 +751,15 @@ export function ensureToolbar(): HTMLElement {
     <div class="lia-annot-actions" role="toolbar" aria-label="Annotation tools">
       <button class="lia-annot-btn" type="button" data-act="cursor" aria-label="Cursor" aria-pressed="false" title="Cursor" data-snapshot-admin="1">${iconCursor()}</button>
       <button class="lia-annot-btn" type="button" data-act="pen" aria-label="Pen" aria-pressed="false" title="Pen" data-snapshot-admin="1">${iconPen()}</button>
+      <div class="lia-annot-external-slot lia-annot-marker-slot" data-lia-annotation-slot="marker" role="group" aria-label="Marker tools"></div>
       <button class="lia-annot-btn" type="button" data-act="eraser" aria-label="Eraser" aria-pressed="false" title="Eraser" data-snapshot-admin="1">${iconEraser()}</button>
       <button class="lia-annot-btn" type="button" data-act="undo" aria-label="Undo" title="Undo" data-snapshot-admin="1">${iconUndo()}</button>
       <button class="lia-annot-btn" type="button" data-act="redo" aria-label="Redo" title="Redo" data-snapshot-admin="1">${iconRedo()}</button>
+      <div class="lia-annot-external-slot lia-annot-board-slot" data-lia-annotation-slot="board" role="group" aria-label="Formatting tools"></div>
       <button class="lia-annot-btn" type="button" data-act="dgs-place" aria-label="Place coordinate system" title="Place coordinate system" data-snapshot-admin="1">${iconCoord()}</button>
       <button class="lia-annot-btn" type="button" data-act="ocr-transfer" aria-label="Submit as solution" title="Submit as solution" data-snapshot-admin="1">${iconOcrTransfer()}</button>
       <button class="lia-annot-btn" type="button" data-act="toggle" aria-label="Show/hide annotations" aria-pressed="true" title="Show/hide annotations" data-snapshot-admin="1">${iconEye(true)}</button>
+      <div class="lia-annot-external-slot lia-annot-external-actions" data-lia-annotation-slot="fallback" role="group" aria-label="Template tools"></div>
     </div>
     <div class="lia-annot-panel" data-open="0"></div>
   `;
@@ -745,11 +767,6 @@ export function ensureToolbar(): HTMLElement {
   syncPenColorIndicator(bar);
 
   const eyeButton = bar.querySelector('[data-act="toggle"]') as HTMLElement;
-  const externalActions = document.createElement('div');
-  externalActions.className = 'lia-annot-external-actions';
-  externalActions.setAttribute('role', 'group');
-  externalActions.setAttribute('aria-label', 'Template tools');
-  bar.querySelector('.lia-annot-actions')?.appendChild(externalActions);
   eyeStates.set(eyeButton, true);
 
   (document.body || document.documentElement).appendChild(bar);

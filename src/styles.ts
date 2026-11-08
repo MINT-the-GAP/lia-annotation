@@ -42,20 +42,38 @@ export const CSS = `
     align-items: center;
   }
 
-  .lia-annot-external-actions {
+  .lia-annot-external-slot {
     display: inline-flex;
     flex-direction: column;
     gap: 2px;
     align-items: center;
     width: 32px;
-    margin-top: 6px;
-    padding-top: 6px;
     box-sizing: content-box;
-    border-top: 1px solid var(--lia-annot-border);
   }
 
-  .lia-annot-external-actions:empty {
+  .lia-annot-external-slot:empty {
     display: none;
+  }
+
+  .lia-annot-board-slot:not(:empty) {
+    position: relative;
+    margin-top: 6px;
+  }
+
+  .lia-annot-board-slot:not(:empty)::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 4px;
+    right: 4px;
+    height: 1px;
+    background: var(--lia-annot-border);
+  }
+
+  .lia-annot-external-actions {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--lia-annot-border);
   }
 
   .lia-annot-external-control {

@@ -46,8 +46,9 @@ board-mode -> annotation -> marker
 board-mode -> marker -> annotation
 ~~~
 
-The test verifies original element identity, the stable marker-before-board
-order, hosted 32 px layout, panels outside the annotation toolbar, real
+The test verifies original element identity, the exact visible order
+cursor → pen → marker → eraser → undo → redo → font size → coordinates → eye,
+both required separators, hosted 32 px layout, panels outside the annotation toolbar, real
 pointer/keyboard/slider behavior, read-only isolation, public toolbar rebuild,
 both standalone load orders and two consecutive idle windows without
 registration, DOM-mutation or animation-frame loops. Its dedicated fixture is

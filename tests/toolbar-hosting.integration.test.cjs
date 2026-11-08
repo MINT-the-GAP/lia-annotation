@@ -197,8 +197,8 @@ async function openScenario(browser, bundles, order) {
       return !!api &&
         api.hasToolbarControl?.('lia-marker') === true &&
         api.hasToolbarControl?.('lia-board-mode') === true &&
-        marker?.parentElement?.classList.contains('lia-annot-external-actions') &&
-        board?.parentElement?.classList.contains('lia-annot-external-actions');
+        marker?.parentElement?.getAttribute('data-lia-annotation-slot') === 'marker' &&
+        board?.parentElement?.getAttribute('data-lia-annotation-slot') === 'board';
     });
   } else {
     await page.waitForFunction(() =>
@@ -233,7 +233,14 @@ async function hostedSnapshot(page) {
     const markerPanel = document.getElementById('lia-hl-panel');
     const boardPanel = document.getElementById('lia-tff-panel-v2');
     const slider = document.getElementById('lia-tff-slider-v2');
-    const host = document.querySelector('.lia-annot-external-actions');
+    const markerHost = document.querySelector('[data-lia-annotation-slot=marker]');
+    const boardHost = document.querySelector('[data-lia-annotation-slot=board]');
+    const fallbackHost = document.querySelector('[data-lia-annotation-slot=fallback]');
+    const pen = document.querySelector('.lia-annot-btn[data-act=pen]');
+    const eraser = document.querySelector('.lia-annot-btn[data-act=eraser]');
+    const undo = document.querySelector('.lia-annot-btn[data-act=undo]');
+    const redo = document.querySelector('.lia-annot-btn[data-act=redo]');
+    const coordinate = document.querySelector('.lia-annot-btn[data-act=dgs-place]');
     const eye = document.querySelector('.lia-annot-btn[data-act=toggle]');
     const api = window.__LIA_ANNOTATION__;
     const markerStyle = getComputedStyle(marker);
@@ -247,6 +254,11 @@ async function hostedSnapshot(page) {
     const markerDotStyle = getComputedStyle(markerDot);
     const markerRect = marker.getBoundingClientRect();
     const boardRect = board.getBoundingClientRect();
+    const penRect = pen.getBoundingClientRect();
+    const eraserRect = eraser.getBoundingClientRect();
+    const undoRect = undo.getBoundingClientRect();
+    const redoRect = redo.getBoundingClientRect();
+    const coordinateRect = coordinate.getBoundingClientRect();
     const smallGlyphRect = smallGlyph.getBoundingClientRect();
     const bigGlyphRect = bigGlyph.getBoundingClientRect();
     const smallGlyphStyle = getComputedStyle(smallGlyph);
@@ -268,11 +280,47 @@ async function hostedSnapshot(page) {
       boardCount: document.querySelectorAll('#lia-tff-btn-v2').length,
       sameMarker: marker === window.__toolbarProbe.originals.marker,
       sameBoard: board === window.__toolbarProbe.originals.boardMode,
-      sameHost: marker.parentElement === host && board.parentElement === host,
-      eyeBeforeHost: eye.nextElementSibling === host,
-      hostIsLast: host.nextElementSibling === null,
-      hostChildren: Array.from(host.children, element =>
+      markerParentSlot: marker.parentElement?.getAttribute('data-lia-annotation-slot'),
+      boardParentSlot: board.parentElement?.getAttribute('data-lia-annotation-slot'),
+      markerHostChildren: Array.from(markerHost.children, element =>
         element.getAttribute('data-lia-annotation-control')),
+      boardHostChildren: Array.from(boardHost.children, element =>
+        element.getAttribute('data-lia-annotation-control')),
+      fallbackChildren: fallbackHost.children.length,
+      fallbackDisplay: getComputedStyle(fallbackHost).display,
+      neighbors: {
+        penMarker: pen.nextElementSibling === markerHost,
+        markerEraser: markerHost.nextElementSibling === eraser,
+        redoBoard: redo.nextElementSibling === boardHost,
+        boardCoordinate: boardHost.nextElementSibling === coordinate,
+        eyeFallback: eye.nextElementSibling === fallbackHost,
+        fallbackLast: fallbackHost.nextElementSibling === null
+      },
+      domOrder: Array.from(document.querySelectorAll(
+        '.lia-annot-actions > .lia-annot-btn[data-act], ' +
+        '.lia-annot-actions > .lia-annot-external-slot > [data-lia-annotation-control]'
+      ), element => element.getAttribute('data-lia-annotation-control') || element.dataset.act),
+      visibleOrder: Array.from(document.querySelectorAll(
+        '.lia-annot-actions > .lia-annot-btn[data-act], ' +
+        '.lia-annot-actions > .lia-annot-external-slot > [data-lia-annotation-control]'
+      )).filter(element => getComputedStyle(element).display !== 'none')
+        .map(element => element.getAttribute('data-lia-annotation-control') || element.dataset.act),
+      gaps: {
+        penMarker: markerRect.top - penRect.bottom,
+        markerEraser: eraserRect.top - markerRect.bottom,
+        eraserUndo: undoRect.top - eraserRect.bottom,
+        redoBoard: boardRect.top - redoRect.bottom,
+        boardCoordinate: coordinateRect.top - boardRect.bottom
+      },
+      separators: {
+        markerMargin: getComputedStyle(markerHost).marginTop,
+        markerBorder: getComputedStyle(markerHost).borderTopWidth,
+        boardMargin: getComputedStyle(boardHost).marginTop,
+        boardContent: getComputedStyle(boardHost, '::before').content,
+        boardHeight: getComputedStyle(boardHost, '::before').height,
+        undoContent: getComputedStyle(undo, '::before').content,
+        undoHeight: getComputedStyle(undo, '::before').height
+      },
       markerHosted: marker.getAttribute('data-lia-annotation-hosted'),
       boardHosted: board.getAttribute('data-lia-annotation-hosted'),
       markerControl: marker.getAttribute('data-lia-annotation-control'),
@@ -346,10 +394,42 @@ function assertHostedSnapshot(snapshot, order) {
   assert.equal(snapshot.boardCount, 1);
   assert.equal(snapshot.sameMarker, true, 'marker keeps original HTMLElement identity');
   assert.equal(snapshot.sameBoard, true, 'board-mode keeps original HTMLElement identity');
-  assert.equal(snapshot.sameHost, true);
-  assert.equal(snapshot.eyeBeforeHost, true, 'template controls sit immediately after the visibility toggle');
-  assert.equal(snapshot.hostIsLast, true, 'template controls remain the final toolbar group');
-  assert.deepEqual(snapshot.hostChildren, ['lia-marker', 'lia-board-mode']);
+  assert.equal(snapshot.markerParentSlot, 'marker');
+  assert.equal(snapshot.boardParentSlot, 'board');
+  assert.deepEqual(snapshot.markerHostChildren, ['lia-marker']);
+  assert.deepEqual(snapshot.boardHostChildren, ['lia-board-mode']);
+  assert.equal(snapshot.fallbackChildren, 0);
+  assert.equal(snapshot.fallbackDisplay, 'none');
+  assert.deepEqual(snapshot.neighbors, {
+    penMarker: true,
+    markerEraser: true,
+    redoBoard: true,
+    boardCoordinate: true,
+    eyeFallback: true,
+    fallbackLast: true
+  });
+  assert.deepEqual(snapshot.domOrder, [
+    'cursor', 'pen', 'lia-marker', 'eraser', 'undo', 'redo',
+    'lia-board-mode', 'dgs-place', 'ocr-transfer', 'toggle'
+  ]);
+  assert.deepEqual(snapshot.visibleOrder, [
+    'cursor', 'pen', 'lia-marker', 'eraser', 'undo', 'redo',
+    'lia-board-mode', 'dgs-place', 'toggle'
+  ]);
+  assert.deepEqual(snapshot.gaps, {
+    penMarker: 2,
+    markerEraser: 2,
+    eraserUndo: 8,
+    redoBoard: 8,
+    boardCoordinate: 2
+  });
+  assert.equal(snapshot.separators.markerMargin, '0px');
+  assert.equal(snapshot.separators.markerBorder, '0px');
+  assert.equal(snapshot.separators.boardMargin, '6px');
+  assert.notEqual(snapshot.separators.boardContent, 'none');
+  assert.equal(snapshot.separators.boardHeight, '1px');
+  assert.notEqual(snapshot.separators.undoContent, 'none');
+  assert.equal(snapshot.separators.undoHeight, '1px');
   assert.equal(snapshot.markerHosted, 'true');
   assert.equal(snapshot.boardHosted, 'true');
   assert.equal(snapshot.markerControl, 'lia-marker');
@@ -433,7 +513,7 @@ async function exerciseIdempotence(page) {
     markerCount: document.querySelectorAll('#lia-hl-btn').length,
     boardCount: document.querySelectorAll('#lia-tff-btn-v2').length,
     order: Array.from(
-      document.querySelector('.lia-annot-external-actions').children,
+      document.querySelectorAll('.lia-annot-external-slot > [data-lia-annotation-control]'),
       element => element.getAttribute('data-lia-annotation-control')
     )
   }));
@@ -624,10 +704,10 @@ async function rebuildToolbar(page, order) {
     boardSame: true
   });
   await page.waitForFunction(() => {
-    const host = document.querySelector('.lia-annot-external-actions');
-    return host &&
-      document.getElementById('lia-hl-btn')?.parentElement === host &&
-      document.getElementById('lia-tff-btn-v2')?.parentElement === host;
+    return document.getElementById('lia-hl-btn')?.parentElement
+        ?.getAttribute('data-lia-annotation-slot') === 'marker' &&
+      document.getElementById('lia-tff-btn-v2')?.parentElement
+        ?.getAttribute('data-lia-annotation-slot') === 'board';
   });
   await page.waitForTimeout(500);
   assertHostedSnapshot(await hostedSnapshot(page), order);
@@ -747,11 +827,13 @@ async function captureIdleWindows(page) {
   const state = await page.evaluate(() => ({
     registerCalls: window.__toolbarProbe.registerCalls,
     markerParent:
-      document.getElementById('lia-hl-btn').parentElement?.className,
+      document.getElementById('lia-hl-btn').parentElement
+        ?.getAttribute('data-lia-annotation-slot'),
     boardParent:
-      document.getElementById('lia-tff-btn-v2').parentElement?.className,
+      document.getElementById('lia-tff-btn-v2').parentElement
+        ?.getAttribute('data-lia-annotation-slot'),
     order: Array.from(
-      document.querySelector('.lia-annot-external-actions').children,
+      document.querySelectorAll('.lia-annot-external-slot > [data-lia-annotation-control]'),
       element => element.getAttribute('data-lia-annotation-control')
     ),
     markerPanelOpen: document.body.classList.contains('lia-hl-panel-open'),
@@ -762,8 +844,8 @@ async function captureIdleWindows(page) {
 
 function assertIdleResult(result) {
   assert.equal(result.state.registerCalls, 0);
-  assert.match(result.state.markerParent, /lia-annot-external-actions/);
-  assert.match(result.state.boardParent, /lia-annot-external-actions/);
+  assert.equal(result.state.markerParent, 'marker');
+  assert.equal(result.state.boardParent, 'board');
   assert.deepEqual(result.state.order, ['lia-marker', 'lia-board-mode']);
   assert.equal(result.state.markerPanelOpen, false);
   assert.equal(result.state.boardPanelOpen, false);
@@ -781,7 +863,7 @@ function assertIdleResult(result) {
   }
 }
 
-test('current local dist bundles host marker and board-mode controls together', {
+test('current local dist bundles host marker and board-mode in their exact toolbar slots', {
   skip: skipReason
 }, async t => {
   if (availability.issues.length) {

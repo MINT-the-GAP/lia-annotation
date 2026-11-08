@@ -181,6 +181,183 @@ test('external toolbar controls register, sort, survive rebuilds and restore wit
   });
 });
 
+test('marker and board-mode controls occupy the requested native toolbar positions', async t => {
+  const page = await usingPage(t);
+
+  const initial = await page.evaluate(() => {
+    const origin = document.createElement('div');
+    origin.id = 'reserved-control-origin';
+    const marker = document.createElement('button');
+    marker.id = 'reserved-marker';
+    const board = document.createElement('button');
+    board.id = 'reserved-board';
+    const anchor = document.createElement('span');
+    anchor.id = 'reserved-anchor';
+    origin.append(marker, board, anchor);
+    document.body.append(origin);
+
+    const api = window.__LIA_ANNOTATION__;
+    const registered = [
+      api.registerToolbarControl('lia-board-mode', board, { order: 200 }),
+      api.registerToolbarControl('lia-marker', marker, { order: 100 })
+    ];
+
+    function flattened(visibleOnly) {
+      const result = [];
+      const actions = document.querySelector('.lia-annot-actions');
+      for (const child of actions.children) {
+        if (child.matches('.lia-annot-btn[data-act]')) {
+          if (!visibleOnly || getComputedStyle(child).display !== 'none') {
+            result.push(child.dataset.act);
+          }
+          continue;
+        }
+        if (child.matches('.lia-annot-external-slot')) {
+          for (const control of child.children) {
+            if (!visibleOnly || getComputedStyle(control).display !== 'none') {
+              result.push(control.getAttribute('data-lia-annotation-control'));
+            }
+          }
+        }
+      }
+      return result;
+    }
+
+    const pen = document.querySelector('[data-act=pen]');
+    const eraser = document.querySelector('[data-act=eraser]');
+    const undo = document.querySelector('[data-act=undo]');
+    const redo = document.querySelector('[data-act=redo]');
+    const coordinate = document.querySelector('[data-act=dgs-place]');
+    const markerSlot = document.querySelector('[data-lia-annotation-slot=marker]');
+    const boardSlot = document.querySelector('[data-lia-annotation-slot=board]');
+    const fallbackSlot = document.querySelector('[data-lia-annotation-slot=fallback]');
+    const rect = element => element.getBoundingClientRect();
+    const penRect = rect(pen);
+    const markerRect = rect(marker);
+    const eraserRect = rect(eraser);
+    const undoRect = rect(undo);
+    const redoRect = rect(redo);
+    const boardRect = rect(board);
+    const coordinateRect = rect(coordinate);
+    const markerStyle = getComputedStyle(markerSlot);
+    const boardStyle = getComputedStyle(boardSlot);
+    const boardDivider = getComputedStyle(boardSlot, '::before');
+
+    return {
+      registered,
+      domOrder: flattened(false),
+      visibleOrder: flattened(true),
+      markerSlot: marker.parentElement?.getAttribute('data-lia-annotation-slot'),
+      boardSlot: board.parentElement?.getAttribute('data-lia-annotation-slot'),
+      neighbors: {
+        penMarker: pen.nextElementSibling === markerSlot,
+        markerEraser: markerSlot.nextElementSibling === eraser,
+        redoBoard: redo.nextElementSibling === boardSlot,
+        boardCoordinate: boardSlot.nextElementSibling === coordinate,
+        eyeFallback: document.querySelector('[data-act=toggle]').nextElementSibling === fallbackSlot,
+        fallbackLast: fallbackSlot.nextElementSibling === null
+      },
+      gaps: {
+        penMarker: markerRect.top - penRect.bottom,
+        markerEraser: eraserRect.top - markerRect.bottom,
+        eraserUndo: undoRect.top - eraserRect.bottom,
+        redoBoard: boardRect.top - redoRect.bottom,
+        boardCoordinate: coordinateRect.top - boardRect.bottom
+      },
+      separators: {
+        markerMargin: markerStyle.marginTop,
+        markerBorder: markerStyle.borderTopWidth,
+        boardMargin: boardStyle.marginTop,
+        boardContent: boardDivider.content,
+        boardHeight: boardDivider.height,
+        undoContent: getComputedStyle(undo, '::before').content,
+        undoHeight: getComputedStyle(undo, '::before').height
+      },
+      fallbackDisplay: getComputedStyle(fallbackSlot).display
+    };
+  });
+
+  assert.deepEqual(initial.registered, [true, true]);
+  assert.deepEqual(initial.domOrder, [
+    'cursor', 'pen', 'lia-marker', 'eraser', 'undo', 'redo',
+    'lia-board-mode', 'dgs-place', 'ocr-transfer', 'toggle'
+  ]);
+  assert.deepEqual(initial.visibleOrder, [
+    'cursor', 'pen', 'lia-marker', 'eraser', 'undo', 'redo',
+    'lia-board-mode', 'dgs-place', 'toggle'
+  ]);
+  assert.equal(initial.markerSlot, 'marker');
+  assert.equal(initial.boardSlot, 'board');
+  assert.deepEqual(initial.neighbors, {
+    penMarker: true,
+    markerEraser: true,
+    redoBoard: true,
+    boardCoordinate: true,
+    eyeFallback: true,
+    fallbackLast: true
+  });
+  assert.deepEqual(initial.gaps, {
+    penMarker: 2,
+    markerEraser: 2,
+    eraserUndo: 8,
+    redoBoard: 8,
+    boardCoordinate: 2
+  });
+  assert.equal(initial.separators.markerMargin, '0px');
+  assert.equal(initial.separators.markerBorder, '0px');
+  assert.equal(initial.separators.boardMargin, '6px');
+  assert.notEqual(initial.separators.boardContent, 'none');
+  assert.equal(initial.separators.boardHeight, '1px');
+  assert.notEqual(initial.separators.undoContent, 'none');
+  assert.equal(initial.separators.undoHeight, '1px');
+  assert.equal(initial.fallbackDisplay, 'none');
+
+  assert.deepEqual(await page.evaluate(() => {
+    const marker = document.querySelector('#reserved-marker');
+    const board = document.querySelector('#reserved-board');
+    const oldToolbar = document.querySelector('.lia-annot-toolbar');
+    oldToolbar.remove();
+    const newToolbar = window.__annotationTest.ui.ensureToolbar();
+    return {
+      replaced: oldToolbar !== newToolbar,
+      sameMarker: marker === document.querySelector('#reserved-marker'),
+      sameBoard: board === document.querySelector('#reserved-board'),
+      markerSlot: marker.parentElement?.getAttribute('data-lia-annotation-slot'),
+      boardSlot: board.parentElement?.getAttribute('data-lia-annotation-slot')
+    };
+  }), {
+    replaced: true,
+    sameMarker: true,
+    sameBoard: true,
+    markerSlot: 'marker',
+    boardSlot: 'board'
+  });
+
+  assert.deepEqual(await page.evaluate(() => {
+    const api = window.__LIA_ANNOTATION__;
+    const results = [
+      api.unregisterToolbarControl('lia-marker'),
+      api.unregisterToolbarControl('lia-board-mode')
+    ];
+    const origin = document.querySelector('#reserved-control-origin');
+    return {
+      results,
+      restored: Array.from(origin.children, element => element.id),
+      markerDisplay: getComputedStyle(
+        document.querySelector('[data-lia-annotation-slot=marker]')
+      ).display,
+      boardDisplay: getComputedStyle(
+        document.querySelector('[data-lia-annotation-slot=board]')
+      ).display
+    };
+  }), {
+    results: [true, true],
+    restored: ['reserved-marker', 'reserved-board', 'reserved-anchor'],
+    markerDisplay: 'none',
+    boardDisplay: 'none'
+  });
+});
+
 test('unchanged theme and toolbar calls preserve all nodes and emit no mutations', async t => {
   const page = await usingPage(t);
   await page.evaluate(() => {
