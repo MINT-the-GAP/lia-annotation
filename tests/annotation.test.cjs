@@ -46,9 +46,10 @@ test('external toolbar controls register, sort, survive rebuilds and restore wit
     readyDetailMatches: window.__annotationReadyDetail === window.__LIA_ANNOTATION__,
     emptyChildren: document.querySelector('.lia-annot-external-actions').children.length,
     emptyDisplay: getComputedStyle(document.querySelector('.lia-annot-external-actions')).display,
-    externalBeforeToggle:
-      document.querySelector('.lia-annot-external-actions').nextElementSibling?.dataset.act === 'toggle',
-    toggleIsLast: document.querySelector('[data-act=toggle]').nextElementSibling === null
+    toggleBeforeExternal:
+      document.querySelector('[data-act=toggle]').nextElementSibling ===
+        document.querySelector('.lia-annot-external-actions'),
+    externalIsLast: document.querySelector('.lia-annot-external-actions').nextElementSibling === null
   })), {
     register: 'function',
     unregister: 'function',
@@ -57,8 +58,8 @@ test('external toolbar controls register, sort, survive rebuilds and restore wit
     readyDetailMatches: true,
     emptyChildren: 0,
     emptyDisplay: 'none',
-    externalBeforeToggle: true,
-    toggleIsLast: true
+    toggleBeforeExternal: true,
+    externalIsLast: true
   });
 
   const registered = await page.evaluate(() => {
@@ -134,16 +135,18 @@ test('external toolbar controls register, sort, survive rebuilds and restore wit
     return {
       replaced: oldToolbar !== newToolbar,
       controls: Array.from(newToolbar.querySelector('.lia-annot-external-actions').children, element => element.id),
-      externalBeforeToggle:
-        newToolbar.querySelector('.lia-annot-external-actions').nextElementSibling?.dataset.act === 'toggle',
-      toggleIsLast: newToolbar.querySelector('[data-act=toggle]').nextElementSibling === null,
+      toggleBeforeExternal:
+        newToolbar.querySelector('[data-act=toggle]').nextElementSibling ===
+          newToolbar.querySelector('.lia-annot-external-actions'),
+      externalIsLast:
+        newToolbar.querySelector('.lia-annot-external-actions').nextElementSibling === null,
       aConnected: document.querySelector('#external-a').isConnected
     };
   }), {
     replaced: true,
     controls: ['external-a', 'external-b', 'external-z'],
-    externalBeforeToggle: true,
-    toggleIsLast: true,
+    toggleBeforeExternal: true,
+    externalIsLast: true,
     aConnected: true
   });
 

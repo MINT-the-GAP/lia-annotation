@@ -175,7 +175,7 @@ window.__LIA_ANNOTATION__.clearAllSlides();
 Other templates can place an existing control in the annotation toolbar without
 cloning it. The annotation plugin preserves the element's event listeners and
 restores its original DOM position when it is unregistered. Hosted controls are
-sorted by their numeric `order` and appear immediately before the final
+sorted by their numeric `order` and appear after the native
 show/hide-annotations button.
 
 ```js

@@ -269,8 +269,8 @@ async function hostedSnapshot(page) {
       sameMarker: marker === window.__toolbarProbe.originals.marker,
       sameBoard: board === window.__toolbarProbe.originals.boardMode,
       sameHost: marker.parentElement === host && board.parentElement === host,
-      hostBeforeEye: host.nextElementSibling === eye,
-      eyeIsLast: eye.nextElementSibling === null,
+      eyeBeforeHost: eye.nextElementSibling === host,
+      hostIsLast: host.nextElementSibling === null,
       hostChildren: Array.from(host.children, element =>
         element.getAttribute('data-lia-annotation-control')),
       markerHosted: marker.getAttribute('data-lia-annotation-hosted'),
@@ -347,8 +347,8 @@ function assertHostedSnapshot(snapshot, order) {
   assert.equal(snapshot.sameMarker, true, 'marker keeps original HTMLElement identity');
   assert.equal(snapshot.sameBoard, true, 'board-mode keeps original HTMLElement identity');
   assert.equal(snapshot.sameHost, true);
-  assert.equal(snapshot.hostBeforeEye, true, 'template controls sit immediately before the visibility toggle');
-  assert.equal(snapshot.eyeIsLast, true, 'visibility toggle remains the final toolbar control');
+  assert.equal(snapshot.eyeBeforeHost, true, 'template controls sit immediately after the visibility toggle');
+  assert.equal(snapshot.hostIsLast, true, 'template controls remain the final toolbar group');
   assert.deepEqual(snapshot.hostChildren, ['lia-marker', 'lia-board-mode']);
   assert.equal(snapshot.markerHosted, 'true');
   assert.equal(snapshot.boardHosted, 'true');
