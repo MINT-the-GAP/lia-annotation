@@ -737,7 +737,7 @@ export function ensureToolbar(): HTMLElement {
   externalActions.className = 'lia-annot-external-actions';
   externalActions.setAttribute('role', 'group');
   externalActions.setAttribute('aria-label', 'Template tools');
-  bar.querySelector('.lia-annot-actions')?.appendChild(externalActions);
+  bar.querySelector('.lia-annot-actions')?.insertBefore(externalActions, eyeButton);
   eyeStates.set(eyeButton, true);
 
   (document.body || document.documentElement).appendChild(bar);
