@@ -593,13 +593,15 @@ test('pen button mirrors the selected color across updates, themes and rebuilds'
       background: style.backgroundColor,
       width: rect.width,
       height: rect.height,
-      radius: style.borderRadius
+      radius: style.borderRadius,
+      shadow: style.boxShadow
     };
   }), {
     background: 'rgb(255, 0, 0)',
     width: 8,
     height: 8,
-    radius: '999px'
+    radius: '999px',
+    shadow: 'none'
   });
 
   await clickTool(page, 'pen');

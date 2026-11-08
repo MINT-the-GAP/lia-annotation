@@ -220,7 +220,6 @@
     border: 1px solid var(--lia-annot-bg);
     border-radius: 999px;
     background: var(--lia-annot-pen-color, #ff0000);
-    box-shadow: 0 0 0 1px var(--lia-annot-border);
     pointer-events: none;
   }
 
