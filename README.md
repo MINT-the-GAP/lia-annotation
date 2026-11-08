@@ -61,7 +61,7 @@ The toolbar appears on the left edge of the viewport in presentation mode.
 | Button | Action |
 |--------|--------|
 | Cursor | Disable drawing — interact with slide content normally |
-| Pen    | Draw freehand strokes; click again to open the pen options panel |
+| Pen    | Draw freehand strokes; the small dot shows the selected color; click again to open the pen options panel |
 | Eraser | Erase strokes; click again to open the eraser options panel |
 | Undo   | Undo the last stroke |
 | Redo   | Redo the last undone stroke |

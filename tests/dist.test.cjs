@@ -16,11 +16,22 @@ test('shipped dist bundle supports drawing, undo, themes and a quiet public refr
     unregister: typeof window.__LIA_ANNOTATION__.unregisterToolbarControl,
     has: typeof window.__LIA_ANNOTATION__.hasToolbarControl
   })), { getStore: 'function', register: 'function', unregister: 'function', has: 'function' });
+  const penColor = page.locator('[data-act="pen"] .lia-annot-pen-color');
+  assert.equal(await penColor.count(), 1);
+  assert.equal(
+    await penColor.evaluate(element => getComputedStyle(element).backgroundColor),
+    'rgb(255, 0, 0)'
+  );
   await page.evaluate(() => { for (let i = 0; i < 10; i++) window.__LIA_ANNOTATION__.refresh(); });
   await settle(page);
   assert.equal((await metrics(page)).mutations, 0);
   assert.equal((await metrics(page)).paints, 0);
   await clickTool(page, 'pen');
+  await page.locator('.lia-annot-color-item[data-color="#0055ff"]').click();
+  assert.equal(
+    await penColor.evaluate(element => getComputedStyle(element).backgroundColor),
+    'rgb(0, 85, 255)'
+  );
   await clickTool(page, 'pen');
   const box = await page.locator('.lia-annot-canvas').boundingBox();
   await page.mouse.move(box.x + 400, box.y + 180);

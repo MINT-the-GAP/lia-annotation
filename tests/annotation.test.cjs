@@ -580,6 +580,66 @@ test('annotation pen and quiz selection delegate to a live canvas while coordina
   });
 });
 
+test('pen button mirrors the selected color across updates, themes and rebuilds', async t => {
+  const page = await usingPage(t);
+  const dot = page.locator('[data-act="pen"] .lia-annot-pen-color');
+
+  assert.equal(await dot.count(), 1);
+  assert.equal(await dot.getAttribute('aria-hidden'), 'true');
+  assert.deepEqual(await dot.evaluate(element => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return {
+      background: style.backgroundColor,
+      width: rect.width,
+      height: rect.height,
+      radius: style.borderRadius
+    };
+  }), {
+    background: 'rgb(255, 0, 0)',
+    width: 8,
+    height: 8,
+    radius: '999px'
+  });
+
+  await clickTool(page, 'pen');
+  await page.locator('.lia-annot-color-item[data-color="#0055ff"]').click();
+  assert.equal(await page.evaluate(() => window.__LIA_ANNOTATION__.getStore().ui.color), '#0055ff');
+  assert.equal(
+    await dot.evaluate(element => getComputedStyle(element).backgroundColor),
+    'rgb(0, 85, 255)'
+  );
+
+  await page.evaluate(() => {
+    window.__penColorDot = document.querySelector('.lia-annot-pen-color');
+    document.documentElement.classList.add('dark');
+  });
+  await settle(page);
+  assert.equal(await page.evaluate(() =>
+    window.__penColorDot === document.querySelector('.lia-annot-pen-color')), true);
+  assert.equal(
+    await dot.evaluate(element => getComputedStyle(element).backgroundColor),
+    'rgb(0, 85, 255)'
+  );
+
+  await reset(page);
+  await page.evaluate(() => {
+    for (let i = 0; i < 10; i++) window.__annotationTest.ui.updateToolbar();
+  });
+  await settle(page);
+  assert.equal((await metrics(page)).toolbarMutations, 0);
+
+  await page.evaluate(() => {
+    document.querySelector('.lia-annot-toolbar').remove();
+    window.__LIA_ANNOTATION__.refresh();
+  });
+  assert.equal(await dot.count(), 1);
+  assert.equal(
+    await dot.evaluate(element => getComputedStyle(element).backgroundColor),
+    'rgb(0, 85, 255)'
+  );
+});
+
 test('drawing, erasing, sliders and undo/redo keep pixels and button state in sync', async t => {
   const page = await usingPage(t);
   await clickTool(page, 'pen');

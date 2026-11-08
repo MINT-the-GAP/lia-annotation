@@ -125,6 +125,20 @@ export const CSS = `
     overflow: visible;
   }
 
+  .lia-annot-btn[data-act="pen"] .lia-annot-pen-color {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 8px;
+    height: 8px;
+    box-sizing: border-box;
+    border: 1px solid var(--lia-annot-bg);
+    border-radius: 999px;
+    background: var(--lia-annot-pen-color, #ff0000);
+    box-shadow: 0 0 0 1px var(--lia-annot-border);
+    pointer-events: none;
+  }
+
   /* Icon nudges — each icon has slightly different optical weight */
   .lia-annot-btn[data-act="cursor"] svg { transform: translateX(4.5px); }
   .lia-annot-btn[data-act="pen"]    svg { transform: translateX(1px); }

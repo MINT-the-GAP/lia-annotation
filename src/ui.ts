@@ -95,7 +95,7 @@ function iconPen(): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path class="ico-stroke" d="M4 20h4l10.2-10.2a2.2 2.2 0 0 0 0-3.1l-1.1-1.1a2.2 2.2 0 0 0-3.1 0L3.8 15.8 3 21z" fill="none" stroke-width="1.8" stroke-linejoin="round"/>
     <path class="ico-stroke" d="M13.2 6.8l4 4" fill="none" stroke-width="1.8" stroke-linecap="round"/>
-  </svg>`;
+  </svg><span class="lia-annot-pen-color" aria-hidden="true"></span>`;
 }
 
 function iconEraser(): string {
@@ -689,6 +689,16 @@ export function hasToolbarControl(id: string): boolean {
 // passed in as callbacks from boot.ts.
 const eyeStates = new WeakMap<HTMLElement, boolean>();
 
+function syncPenColorIndicator(bar: HTMLElement): void {
+  const penButton = bar.querySelector('.lia-annot-btn[data-act="pen"]') as HTMLElement | null;
+  if (!penButton) return;
+  setStyleIfChanged(
+    penButton,
+    '--lia-annot-pen-color',
+    String(STORE.ui.color || '#ff0000')
+  );
+}
+
 let _callbacks: {
   requestRedraw: () => void;
   requestSync: () => void;
@@ -731,6 +741,8 @@ export function ensureToolbar(): HTMLElement {
     </div>
     <div class="lia-annot-panel" data-open="0"></div>
   `;
+
+  syncPenColorIndicator(bar);
 
   const eyeButton = bar.querySelector('[data-act="toggle"]') as HTMLElement;
   const externalActions = document.createElement('div');
@@ -896,6 +908,8 @@ export function updateToolbar(): void {
   const slide = currentSlide();
   const ro = isReadOnly();
   const lang = detectUiLang();
+
+  syncPenColorIndicator(bar);
 
   const panel = bar.querySelector('.lia-annot-panel') as HTMLElement | null;
   if (panel) {
