@@ -27,6 +27,19 @@ async function assertQuiet(page, ms = 160) {
   });
 }
 
+test('root-window lookup keeps registries in the local frame for a cross-origin parent', async t => {
+  const page = await usingPage(t);
+  assert.equal(await page.evaluate(() => {
+    const local = {};
+    const foreignParent = {};
+    Object.defineProperty(local, 'parent', { value: foreignParent });
+    Object.defineProperty(foreignParent, 'document', {
+      get() { throw new DOMException('Blocked by the same-origin policy', 'SecurityError'); }
+    });
+    return window.__annotationTest.store.getRootWindow(local) === local;
+  }), true);
+});
+
 test('external toolbar controls register, sort, survive rebuilds and restore without stealing events', async t => {
   const page = await usingPage(t, {
     beforeBoot: () => {

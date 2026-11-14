@@ -5,14 +5,23 @@ import type { Mode, Point, PathItem, SlideData, Store, State } from './types';
 
 type RootWindow = Window & { [key: string]: unknown };
 
-function getRootWindow(): RootWindow {
-  let w = window as unknown as RootWindow;
-  try {
-    while (w.parent && w.parent !== (w as unknown as Window)) {
-      w = w.parent as unknown as RootWindow;
+export function getRootWindow(start: Window = window): RootWindow {
+  let current = start as unknown as RootWindow;
+
+  for (;;) {
+    let parent: Window;
+    try {
+      parent = current.parent;
+      if (!parent || parent === (current as unknown as Window)) return current;
+
+      // Reading parent itself is permitted for a cross-origin WindowProxy.
+      // Probe its document before adopting it as the registry owner.
+      void parent.document;
+    } catch (_) {
+      return current;
     }
-  } catch (_) { }
-  return w;
+    current = parent as unknown as RootWindow;
+  }
 }
 
 export const ROOT: RootWindow = getRootWindow();
